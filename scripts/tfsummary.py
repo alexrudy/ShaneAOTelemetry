@@ -28,25 +28,22 @@ def main():
     tfs = session.query(TransferFunction).filter(TransferFunction.kind == opt.kind).join(Sequence).filter(Sequence.id > 24)
     for tf in tfs.all():
         tfm = tf.sequence.transferfunctionmodels[tf.kind]
+        filename, ext = os.path.splitext(tf.filename)
+        
         if not (tfm.gain == 0.0).all():
-            fig, (ax_1, ax_2, ax_3) = plt.subplots(3,1)
+            fig, (ax_1, ax_2, ax_3) = plt.subplots(3,1, sharex=True)
+            fig.suptitle("Parameter as a function of coefficient for s{0:04d} gain={1:.2f}".format(tf.sequence.id, tf.sequence.gain))
+            
+            ax_1.set_xlim(0, 1024)
             ax_1.plot(tfm.gain, 'b.')
             ax_1.axhline(tf.sequence.gain, color='r')
-            ax_1.set_title("Gain as a function of coefficient for s{0:04d} gain={0:.2f}".format(tf.sequence.id, tf.sequence.gain))
-            
+            ax_1.set_ylabel("Gain")
             ax_2.plot(tfm.tau, 'b.')
-            ax_2.set_title("Tau as a function of coefficient for s{0:04d} gain={0:.2f}".format(tf.sequence.id, tf.sequence.gain))
-            
+            ax_2.set_ylabel("Tau")
             ax_3.plot(tfm.integrator, 'b.')
             ax_3.axhline(tf.sequence.tweeter_bleed, color='r')
-            ax_3.set_title("Bleed as a function of coefficient for s{0:04d} gain={0:.2f}".format(tf.sequence.id, tf.sequence.gain))
-            
-            
-            plt.show()
-        
-        
-    
-    
+            ax_3.set_ylabel("Bleed")
+            fig.savefig(filename + ".tffit.{:s}.png".format(opt.kind))
 
 if __name__ == '__main__':
     main()
