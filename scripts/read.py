@@ -10,11 +10,13 @@ def main():
     session = Session()
     new_datasets = 0
     directories = set()
-    for filename in glob.iglob(os.path.join(sys.argv[1], '*.fits')):
+    query_path = os.path.join(sys.argv[1], '*.fits')
+    print("Importing files which match '{0}'".format(query_path))
+    for filename in glob.iglob(query_path):
         if not session.query(Dataset).filter(Dataset.filename == filename).count():
             if os.path.dirname(filename) not in directories:
                 print("Importing from '{0:s}'".format(os.path.dirname(filename)))
-                directories.add(filename)
+                directories.add(os.path.dirname(filename))
             
             dataset = Dataset.from_filename(filename)
             session.add(dataset)
