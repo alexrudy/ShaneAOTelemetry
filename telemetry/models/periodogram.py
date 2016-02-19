@@ -10,19 +10,59 @@ from sqlalchemy.orm.collections import attribute_mapped_collection
 import h5py
 import numpy as np
 
-from .base import Base, FileBase
+from .base import Base, FileBase, DataAttribute
 from ..algorithms.periodogram import periodogram
-from .. import makedirs
 
-class _PeriodogramBase(FileBase):
-    """A periodogram base."""
+import astropy.units as u
+import numpy as np
+
+def frequencies(length, rate):
+    """docstring for frequencies"""
+    rate = u.Quantity(rate, u.Hz)
+    return (np.mgrid[-length//2:length//2].astype(np.float) / length) * rate
+
+KMAP = {
+    'sx' : 'slopes',
+    'sy' : 'slopes',
+    'coefficients' : 'coefficients',
+}
+
+class FrequencyDomain(Base):
+    """Things in the FrequencyDomain"""
     __abstract__ = True
     
     length = Column(Integer)
     rate = Column(Float)
     kind = Column(String)
     
+    data = DataAttribute("data")
+    
+    
+    @data.writer
+    def _generate_data(self, g):
+        """Generate the data group."""
+        dset = g.require_dataset(self.kind, shape=self.data.shape, dtype=self.data.dtype)
+        dset[...] = self.data
+        dset.attrs['rate'] = self.rate
+        dset.attrs['kind'] = self.kind
+        
+    @data.reader
+    def _read_data(self, g):
+        """Read the periodogram from a file."""
+        self.data = g[self.kind][...]
+        
+    @property
+    def frequencies(self):
+        """Reuturn the frequencies"""
+        return frequencies(self.length, self.rate)
+    
+
+class _PeriodogramBase(FileBase, FrequencyDomain):
+    """A periodogram base."""
+    __abstract__ = True
+    __h5path__ = "periodograms"
     created = Column(DateTime)
+    
 
 class Periodogram(_PeriodogramBase):
     """A database class to represent a computed periodogram."""
@@ -33,30 +73,20 @@ class Periodogram(_PeriodogramBase):
     @classmethod
     def from_dataset(cls, dataset, kind, length=None, **kwargs):
         """Create a peridogoram from an individual dataset."""
-        tel = getattr(dataset, kind)
-        telemetry = tel.read()
+        tel = getattr(dataset, KMAP[kind])
+        telemetry = getattr(tel, kind)
         if length is None:
             length = telemetry.shape[0]
         pgram = periodogram(telemetry, length, **kwargs)
         
         filename = os.path.join(os.path.dirname(dataset.filename), 'periodogram', 
             "Periodogram_{0:04d}.hdf5".format(dataset.sequence_number))
-        makedirs(os.path.dirname(filename))
-        with h5py.File(filename) as f:
-            g = f.require_group("periodograms")
-            dset = g.require_dataset(kind, shape=pgram.shape, dtype=pgram.dtype)
-            dset[...] = pgram
-            dset.attrs['rate'] = dataset.rate
-            dset.attrs['datset'] = dataset.filename
-            dset.attrs['source'] = tel.id
-
-        return cls(dataset=dataset, length=length, rate=dataset.rate, filename=filename,
-            created=datetime.datetime.now(), kind=kind)
         
-    def read(self):
-        """Read from data."""
-        with h5py.File(self.filename) as f:
-            return f['periodograms'][self.kind][...]
+        obj = cls(dataset=dataset, length=length, rate=dataset.rate, filename=filename,
+            created=datetime.datetime.now(), kind=kind)
+        obj.data = pgram
+        obj.write()
+        return obj
 
 
 class PeriodogramStack(_PeriodogramBase):
@@ -65,9 +95,21 @@ class PeriodogramStack(_PeriodogramBase):
     sequence_id = Column(Integer, ForeignKey("sequence.id"))
     sequence = relationship("Sequence", backref=backref('periodograms', collection_class=attribute_mapped_collection('kind')))
     
+    def read(self):
+        """Read from a file."""
+        with h5py.File(self.filename) as f:
+            return f['periodograms'][self.kind][...]
+    
     @classmethod
     def from_sequence(cls, sequence, kind, length, **kwargs):
         """Create a periodogram from a sequence."""
+        filename = os.path.join(os.path.dirname(sequence.datasets[0].filename), 'periodogram', 
+            "Periodogram_s{0:04d}.hdf5".format(sequence.id))
+        obj = cls(sequence = sequence, filename=filename, length=length, rate=sequence.rate, 
+            created=datetime.datetime.now(), kind=kind)
+        
+        if obj.check():
+            return obj
         
         session = object_session(sequence)
         periodogram_stack = []
@@ -79,24 +121,13 @@ class PeriodogramStack(_PeriodogramBase):
                 periodogram = Periodogram.from_dataset(dataset, kind, length=length, **kwargs)
                 session.add(periodogram)
             
-            periodogram_stack.append(periodogram.read())
+            periodogram_stack.append(periodogram.data)
             
         periodogram_stack = np.array(periodogram_stack)
         periodogram_average = periodogram_stack.mean(axis=0)
         
-        filename = os.path.join(os.path.dirname(dataset.filename), 'periodogram', 
-            "Periodogram_s{0:04d}.hdf5".format(sequence.id))
-        
-        makedirs(os.path.dirname(filename))
-        
-        with h5py.File(filename) as f:
-            g = f.require_group("periodograms")
-            dset = g.require_dataset(kind, shape=periodogram_average.shape, dtype=periodogram_average.dtype)
-            dset[...] = periodogram_average
-            dset.attrs['rate'] = dataset.rate
-            dset.attrs['sequence'] = sequence.id
-        
-        return cls(sequence = sequence, filename = filename, length=length, rate=sequence.rate, 
-            created=datetime.datetime.now(), kind=kind)
+        obj.data = periodogram_average
+        obj.write()
+        return obj
     
     

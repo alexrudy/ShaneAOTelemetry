@@ -4,18 +4,23 @@ from sqlalchemy import Column, Integer, String, DateTime, Float, ForeignKey
 from sqlalchemy.orm import relationship
 
 from .base import Base
+from .data import _DatasetBase
 
-class Sequence(Base):
+class Sequence(_DatasetBase):
     """A sequence is a created grouping of telemetry sets which can be co-added."""
     
-    def __getattr__(self, name):
-        """Given an attribute name, if it is in the sequence hash, return it."""
-        if not len(self.datasets):
-            raise AttributeError("{!r} has no attribute {!s}".format(self, name))
-        attrs = self.datasets[0].get_sequence_attributes()
-        if name in attrs:
-            return attrs[name]
-        raise AttributeError("{!r} has no attribute {!s}".format(self, name))
-        
+    pair_id = Column(Integer, ForeignKey('sequence.id'))
+    pair = relationship("Sequence", remote_side='Sequence.id')
     
-
+    date = Column(DateTime)
+    number = Column(Integer)
+    
+    def matched_pair_attributes(self):
+        """Find a good matched pair."""
+        attrs = self.get_sequence_attributes()
+        # Remove attributes which could be confused.
+        del attrs['loop']
+        del attrs['gain']
+        return attrs
+        
+        
