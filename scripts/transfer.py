@@ -11,12 +11,15 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("kind", choices=set("sx sy coefficients".split()))
     parser.add_argument("--index", type=int, default=None, help="Choose an index.")
+    parser.add_argument("--fit", action='store_true', help="Redo the fit.")
+    
     opt = parser.parse_args()
     import astropy.units as u
     import matplotlib
+    import numpy as np
     # matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    from telemetry import connect
+    from telemetry import connect, makedirs
     Session = connect()
     from telemetry.models import Dataset, Periodogram, PeriodogramStack, Sequence, TransferFunction
     session = Session()
@@ -30,26 +33,43 @@ def main():
     query = session.query(TransferFunction).filter(TransferFunction.kind == opt.kind).join(Sequence).filter(Sequence.id > 24)
     for tf in ProgressBar(query.all()):
         
-        filename, ext = os.path.splitext(tf.filename)
+        filename = os.path.join(tf.sequence.figure_path, "transfer", "s{0:04d}".format(tf.sequence.id))
+        makedirs(os.path.dirname(filename))
         
+        freq = tf.frequencies.to(u.Hz).value
         tf_data = tf.data
-        tf_model = expected_model(tf, tau=0.005)(tf.frequencies.to(u.Hz).value)
+        tf_model = np.exp(expected_model(tf)(freq))
+        
+        tf_fit = tf.sequence.transferfunctionmodels[tf.kind]
+        tf_fit_data = np.exp(tf_fit.to_model()(freq[:,None]))
+        
+        
         fig.clear()
         ax = fig.add_subplot(1,1,1)
-        ax.set_title('Transfer Function for s{:04d} gain={:0.2f}'.format(tf.sequence.id, tf.sequence.gain))
         ax.grid(True)
         show_periodogram(ax, tf_model, rate=tf.rate, alpha=1.0, color='r', zorder=0.1, label='model')
         
         if opt.index is not None:
-            tf_model = fit_model(tf, tau=0.005, index=opt.index)
-            print(expected_model(tf, tau=0.005))
-            print(tf_model)
+            
+            if opt.fit:
+                tf_model = fit_model(tf, index=opt.index)
+                tf_model_data = np.exp(tf_model(freq))
+            else:
+                tf_model = tf_fit.to_model(opt.index)
+                tf_model_data = tf_fit_data[:,opt.index]
+            
+            ax.set_title('Transfer Function for s{:04d} gain={:0.2f} mode={:d}'.format(tf.sequence.id, tf.sequence.gain, opt.index))
             show_periodogram(ax, tf_data[:,opt.index], rate=tf.rate, alpha=1.0, label='data')
-            show_periodogram(ax, tf_model(tf.frequencies.to(u.Hz).value), rate=tf.rate, alpha=1.0, color='g', label='fit')
-            show_model_parameters(ax, tf_model)
-            ax.legend()
+            show_periodogram(ax, tf_model_data, rate=tf.rate, alpha=1.0, color='g', label='fit')
+            show_model_parameters(ax, tf_model, name='Fit')
+            show_model_parameters(ax, expected_model(tf), name='Model', pos=(0.8, 0.1))
+            
+            ax.set_ylim(1e-2, 10)
+            ax.legend(fontsize='small', loc='upper center')
             fig.savefig(filename + ".transfer.{:s}.{:03d}.png".format(opt.kind, opt.index))
         else:
+            ax.set_title('Transfer Function for s{:04d} gain={:0.2f}'.format(tf.sequence.id, tf.sequence.gain))
+            
             show_periodogram(ax, tf_data, rate=tf.rate, alpha=0.1)
             fig.savefig(filename + ".transfer.{:s}.png".format(opt.kind))
     print(filename)
