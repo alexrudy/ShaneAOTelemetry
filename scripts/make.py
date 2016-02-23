@@ -11,6 +11,8 @@ def task(func):
     __tasks[func.__name__] = func
     return func
     
+DATA_KINDS = set("sx sy coefficients fmodes".split())
+    
 def main():
     """Set up the argument parser."""
     parser = argparse.ArgumentParser(add_help=False)
@@ -27,7 +29,7 @@ def periodograms(parser, args):
     parser.add_argument("-f", "--force", action='store_true', help="Force creation of periodograms")
     parser.add_argument("-l", "--length", type=int, help="Periodogram length", default=1024)
     parser.add_argument("-s", "--suppress-static", action='store_true', help="Suppress static in PSDs")
-    parser.add_argument("-k", "--kind", choices=set("sx sy coefficients".split()), default="coefficients")
+    parser.add_argument("-k", "--kind", choices=DATA_KINDS, default="coefficients")
     opt = parser.parse_args(args)
     
     from telemetry import connect
@@ -51,7 +53,9 @@ def periodograms(parser, args):
 @task
 def tf(parser, args):
     """Create transfer functions."""
-    parser.add_argument("-k", "--kind", choices=set("sx sy coefficients".split()), default="coefficients")
+    parser.add_argument("-k", "--kind", choices=DATA_KINDS, default="coefficients")
+    parser.add_argument("-f", "--force", action='store_true', help="Force")
+    
     opt = parser.parse_args(args)
     
     from telemetry.models import Dataset, PeriodogramStack, Sequence, TransferFunction
@@ -61,16 +65,16 @@ def tf(parser, args):
     from astropy.utils.console import ProgressBar
     
     for sequence in ProgressBar(session.query(Sequence).filter(Sequence.pair_id != None, Sequence.loop == "closed").all()):
-        if not sequence.transferfunctions:
+        if opt.force or not sequence.transferfunctions:
             tf = TransferFunction.from_periodogram(sequence.periodograms[opt.kind])
             session.add(tf)
+    print("Created {0:d} transfer functions.".format(len(session.new)))
     session.commit()
     
 @task
 def tffit(parser, args):
     """Make a transfer function fits."""
-    parser.add_argument("kind", choices=set("sx sy coefficients".split()))
-    parser.add_argument("--tau", help="guess for the delay (in s)", type=float, default=0.05)
+    parser.add_argument("kind", choices=DATA_KINDS)
     opt = parser.parse_args(args)
     
     from telemetry import connect
@@ -81,8 +85,8 @@ def tffit(parser, args):
     session = Session()
     from astropy.utils.console import ProgressBar
     
-    for tf in session.query(TransferFunction).filter(TransferFunction.kind == opt.kind).all():
-        model = fit_all_models(tf, opt.tau)
+    for tf in session.query(TransferFunction).filter(TransferFunction.kind == opt.kind).all():  
+        model = fit_all_models(tf)
         tfm = TransferFunctionModel.from_model(tf, model)
         session.add(tfm)
         session.commit()
@@ -90,6 +94,8 @@ def tffit(parser, args):
 @task
 def slopes(parser, args):
     """Main function for parsing."""
+    parser.add_argument("-f", "--force", action='store_true', help="Force")
+    opt = parser.parse_args(args)
     from telemetry import connect
     Session = connect()
     from telemetry.models import Dataset, Slopes
@@ -102,7 +108,7 @@ def slopes(parser, args):
     
     for dataset in ProgressBar(session.query(Dataset).all()):
         
-        if not dataset.slopes:
+        if opt.force or not dataset.slopes:
             slopes = Slopes.from_dataset(dataset)
             session.add(slopes)
             n_telemetry += 1
@@ -110,8 +116,34 @@ def slopes(parser, args):
     print("Created {0:d} telemetry slopes.".format(n_telemetry))
     
 @task
+def fmodes(parser, args):
+    """Main function for parsing."""
+    parser.add_argument("-f", "--force", action='store_true', help="Force")
+    opt = parser.parse_args(args)
+    from telemetry import connect
+    Session = connect()
+    from telemetry.models import Dataset, FourierCoefficients
+    from astropy.utils.console import ProgressBar
+    
+    session = Session()
+    
+    n_telemetry = 0
+    print("Generating fmodes...")
+    
+    for dataset in ProgressBar(session.query(Dataset).all()):
+        
+        if opt.force or not dataset.fmodes:
+            fmodes = FourierCoefficients.from_dataset(dataset)
+            session.add(fmodes)
+            n_telemetry += 1
+    session.commit()
+    print("Created {0:d} telemetry fmodes.".format(n_telemetry))
+    
+@task
 def coefficients(parser, args):
     """Main function for parsing."""
+    parser.add_argument("-f", "--force", action='store_true', help="Force")
+    opt = parser.parse_args(args)
     from telemetry import connect
     Session = connect()
     from telemetry.models import Dataset, Coefficients
@@ -124,7 +156,7 @@ def coefficients(parser, args):
     
     for dataset in ProgressBar(session.query(Dataset).all()):
         
-        if not dataset.coefficients:
+        if opt.force or not dataset.coefficients:
             coefficients = Coefficients.from_dataset(dataset)
             session.add(coefficients)
             n_telemetry += 1
