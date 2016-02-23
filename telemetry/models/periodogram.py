@@ -25,6 +25,7 @@ KMAP = {
     'sx' : 'slopes',
     'sy' : 'slopes',
     'coefficients' : 'coefficients',
+    'fmodes' : 'fmodes',
 }
 
 class FrequencyDomain(Base):
@@ -79,10 +80,7 @@ class Periodogram(_PeriodogramBase):
             length = telemetry.shape[0]
         pgram = periodogram(telemetry, length, **kwargs)
         
-        filename = os.path.join(os.path.dirname(dataset.filename), 'periodogram', 
-            "Periodogram_{0:04d}.hdf5".format(dataset.sequence_number))
-        
-        obj = cls(dataset=dataset, length=length, rate=dataset.rate, filename=filename,
+        obj = cls(dataset=dataset, length=length, rate=dataset.rate, filename=dataset.processed_filename,
             created=datetime.datetime.now(), kind=kind)
         obj.data = pgram
         obj.write()
@@ -103,9 +101,7 @@ class PeriodogramStack(_PeriodogramBase):
     @classmethod
     def from_sequence(cls, sequence, kind, length, **kwargs):
         """Create a periodogram from a sequence."""
-        filename = os.path.join(os.path.dirname(sequence.datasets[0].filename), 'periodogram', 
-            "Periodogram_s{0:04d}.hdf5".format(sequence.id))
-        obj = cls(sequence = sequence, filename=filename, length=length, rate=sequence.rate, 
+        obj = cls(sequence = sequence, filename=sequence.filename, length=length, rate=sequence.rate, 
             created=datetime.datetime.now(), kind=kind)
         
         if obj.check():

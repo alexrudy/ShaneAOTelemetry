@@ -1,7 +1,11 @@
 # -*- coding: utf-8 -*-
 
+import os
+
 from sqlalchemy import Column, Integer, String, DateTime, Float, ForeignKey
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, object_session
+from sqlalchemy.sql import func
+
 
 from .base import Base
 from .data import _DatasetBase
@@ -15,6 +19,18 @@ class Sequence(_DatasetBase):
     date = Column(DateTime)
     number = Column(Integer)
     
+    def match_sequence(self):
+        """Match this sequence to a nearby pair for OL/CL comparison."""
+        #TODO: Add ability to select previous or next pair by priority.
+        attrs = self.matched_pair_attributes()
+        matchq = object_session(self).query(Sequence).filter_by(**attrs).filter(Sequence.id != self.id).filter(Sequence.loop != self.loop)
+        matches = matchq.order_by(func.abs(Sequence.number - self.number)).all()
+        closest = min(abs(s.number - self.number) for s in matches)
+        matches = filter(lambda s : abs(s.number - self.number) <= closest, matches)
+        matches.sort(key=lambda m : abs(len(m.datasets) - len(self.datasets)))
+        self.pair = matches[0]
+        return self.pair
+    
     def matched_pair_attributes(self):
         """Find a good matched pair."""
         attrs = self.get_sequence_attributes()
@@ -23,4 +39,12 @@ class Sequence(_DatasetBase):
         del attrs['gain']
         return attrs
         
+    @property
+    def file_root(self):
+        """File root is based on the first dataset."""
+        return self.datasets[0].file_root
         
+    @property
+    def filename(self):
+        return os.path.join(self.file_root, 'telemetry', 
+                    'telemetry_s{0:04d}.hdf5'.format(self.id))

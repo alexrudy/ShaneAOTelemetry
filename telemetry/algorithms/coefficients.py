@@ -36,7 +36,15 @@ def get_cm_projector(matrix_filename):
     vm = v[0:nm,:]
     return np.asmatrix(vm)
 
-def get_L_matrix():
-    """docstring for get_L_matrix"""
-    filename = os.path.join(root, 'dataFiles', 'reconMatrix_16xreal', "L.fits")
-    return np.asmatrix(fits.getdata(filename))
+def get_matrix(name, mode="16xreal"):
+    """Get a matrix by name."""
+    filename = find_file(os.path.join('reconMatrix_{0}'.format(mode), "{0}.fits".format(name)))
+    with fits.open(filename) as HDUs:
+        HDU = HDUs[0]
+        if HDU.header.get("COMPLEX", False):
+            # Work with a complex HDU.
+            matrix = (HDU.data[0,...] + 1j * HDU.data[1,...]).astype(np.complex)
+        else:
+            matrix = HDU.data.astype(np.float)
+    
+    return np.asmatrix(matrix)

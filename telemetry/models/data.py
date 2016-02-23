@@ -16,7 +16,7 @@ import h5py
 
 from .base import Base, FileBase, DataAttribute
 from .. import makedirs
-from ..algorithms.coefficients import get_cm_projector, get_L_matrix
+from ..algorithms.coefficients import get_cm_projector, get_matrix
 
 def _parse_values_from_header(filename):
     """Parse argument values from a header file."""
@@ -131,13 +131,7 @@ class Coefficients(Telemetry):
     @classmethod
     def from_dataset(cls, dataset):
         """Create slopes item from dataset."""
-        
-        filename = os.path.join(os.path.dirname(dataset.filename), 'telemetry', 
-            'telemetry_{0:04d}.hdf5'.format(dataset.sequence_number))
-        
-        makedirs(os.path.dirname(filename))
-        
-        obj = cls(filename = filename, dataset = dataset)
+        obj = cls(filename = dataset.processed_filename, dataset = dataset)
         if obj.check():
             return obj
         
@@ -150,7 +144,41 @@ class Coefficients(Telemetry):
         slvec = np.matrix(slopes.T)
         slvec.shape = (slvec.shape[0], slvec.shape[1], 1)
         
-        vm = get_L_matrix()
+        vm = get_matrix("H_d")
+        coeffs = vm * slvec
+        data = coeffs.view(np.ndarray).T
+        
+        obj.coefficients = data
+        obj.write()
+        return obj
+    
+
+class FourierCoefficients(Telemetry):
+    """docstring for FourierCoefficients"""
+    
+    __h5path__ = "fourier"
+    
+    dataset = relationship("Dataset", backref=backref('fmodes', uselist=False), uselist=False)
+    
+    fmodes = DataAttribute("fcoefficients")
+    
+    @classmethod
+    def from_dataset(cls, dataset):
+        """Create slopes item from dataset."""
+        obj = cls(filename = dataset.processed_filename, dataset = dataset)
+        if obj.check():
+            return obj
+        
+        data = dataset.read()
+        nacross = int(dataset.mode.split('x',1)[0])
+        ns = { 16 : 144 }[nacross]
+        slopes = data[:,0:ns*2]
+        
+        
+        slvec = np.matrix(slopes.T)
+        slvec.shape = (slvec.shape[0], slvec.shape[1], 1)
+        
+        vm = get_matrix("N")
         coeffs = vm * slvec
         data = coeffs.view(np.ndarray).T
         
@@ -176,6 +204,16 @@ class _DatasetBase(FileBase):
     loop = Column(String)
     control_matrix = Column(String)
     
+    @property
+    def file_root(self):
+        """File path root."""
+        return os.path.dirname(os.path.dirname(self.filename))
+        
+    @property
+    def figure_path(self):
+        """Figure root path."""
+        return os.path.join(self.file_root, "figures")
+    
     def get_sequence_attributes(self):
         """Collect the attributes which we might use to check sequencing."""
         return { 'rate' : self.rate, 'gain' : self.gain, 'centroid' : self.centroid, 
@@ -192,6 +230,12 @@ class Dataset(_DatasetBase):
     
     # ShaneAO Operational parameters
     valid = Column(Boolean, default=True) # A flag to mark a header as unreliable.
+    
+    
+    @property
+    def processed_filename(self):
+        return os.path.join(self.file_root, 'telemetry', 
+                    'telemetry_{0:04d}.hdf5'.format(self.sequence_number))
     
     @property
     def date(self):
