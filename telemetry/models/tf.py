@@ -12,6 +12,7 @@ import numpy as np
 
 from .base import Base, FileBase, DataAttribute
 from .periodogram import FrequencyDomain
+from ..algorithms.transfer.model import TransferFunction as TFModel
 
 import astropy.units as u
 import numpy as np
@@ -52,6 +53,10 @@ class TransferFunctionModel(FileBase, FrequencyDomain):
     tau = DataAttribute("tau")
     gain = DataAttribute("gain")
     integrator = DataAttribute("integrator")
+    
+    def to_model(self, index=Ellipsis):
+        """Return a model."""
+        return TFModel(gain=self.gain[index], tau=self.tau[index], integrator=self.integrator[index], rate=self.rate)
     
     @classmethod
     def from_model(cls, tf, model):
