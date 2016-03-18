@@ -2,6 +2,7 @@
 
 import datetime
 import os
+import warnings
 
 from sqlalchemy import Column, Integer, String, DateTime, Float, ForeignKey, Boolean
 from sqlalchemy.orm import relationship, backref, object_session
@@ -19,7 +20,11 @@ import numpy as np
 
 class TransferFunction(FileBase, FrequencyDomain):
     """A transfer function from a stack of periodograms."""
-    __h5path__ = "transferfunction"
+    @property
+    def __h5path__(self):
+        """HDF5 path"""
+        return "transferfunction/" + self.kind
+    
     created = Column(DateTime)
     
     
@@ -29,8 +34,19 @@ class TransferFunction(FileBase, FrequencyDomain):
     @classmethod
     def from_periodogram(cls, periodogram):
         """Create this object from a periodogram."""
-        cl_data = periodogram.read()
-        ol_data = periodogram.sequence.pair.periodograms[periodogram.kind].read()
+        a_data = periodogram.read()
+        b_data = periodogram.sequence.pair.periodograms[periodogram.kind].read()
+        
+        if periodogram.sequence.loop == "open":
+            if periodogram.sequence.pair.loop != "closed":
+                warnings.warn("Periodogram pair doesn't seem to match. {0:s}/{1:s}".format(periodogram.sequence.loop, periodogram.sequence.pair.loop))
+            ol_data = a_data
+            cl_data = b_data
+        elif periodogram.sequence.loop == "closed":
+            if periodogram.sequence.pair.loop != "open":
+                warnings.warn("Periodogram pair doesn't seem to match. {0:s}/{1:s}".format(periodogram.sequence.loop, periodogram.sequence.pair.loop))
+            ol_data = b_data
+            cl_data = a_data
         
         tf_data = cl_data / ol_data
         obj = cls(sequence = periodogram.sequence, length=periodogram.length, rate=periodogram.rate, filename=periodogram.filename,
@@ -43,7 +59,11 @@ class TransferFunction(FileBase, FrequencyDomain):
 class TransferFunctionModel(FileBase, FrequencyDomain):
     """Transfer function model"""
     
-    __h5path__ = "transferfunction"
+    @property
+    def __h5path__(self):
+        """HDF5 path"""
+        return "transferfunction/" + self.kind
+    
     created = Column(DateTime)
     size = Column(Integer)
     

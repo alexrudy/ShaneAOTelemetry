@@ -9,7 +9,7 @@ def main():
     """Main function for parsing."""
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("kind", choices=set("sx sy coefficients".split()))
+    parser.add_argument("kind", choices=set("sx sy coefficients fmodes".split()))
     parser.add_argument("--index", type=int, default=None, help="Choose an index.")
     parser.add_argument("--fit", action='store_true', help="Redo the fit.")
     
@@ -17,14 +17,14 @@ def main():
     import astropy.units as u
     import matplotlib
     import numpy as np
-    # matplotlib.use("Agg")
+    matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     from telemetry import connect, makedirs
     Session = connect()
     from telemetry.models import Dataset, Periodogram, PeriodogramStack, Sequence, TransferFunction
     session = Session()
     from telemetry.views.periodogram import show_periodogram, show_model_parameters
-    from telemetry.algorithms.transfer.model import expected_model, fit_model
+    from telemetry.algorithms.transfer.linfit import expected_model, fit_model
     from astropy.utils.console import ProgressBar
     
     n_telemetry = 0
@@ -68,10 +68,22 @@ def main():
             ax.legend(fontsize='small', loc='upper center')
             fig.savefig(filename + ".transfer.{:s}.{:03d}.png".format(opt.kind, opt.index))
         else:
+            filename = filename + ".transfer.{:s}.png".format(opt.kind)
+            if os.path.exists(filename):
+                continue
+                
             ax.set_title('Transfer Function for s{:04d} gain={:0.2f}'.format(tf.sequence.id, tf.sequence.gain))
-            
             show_periodogram(ax, tf_data, rate=tf.rate, alpha=0.1)
-            fig.savefig(filename + ".transfer.{:s}.png".format(opt.kind))
+            show_model_parameters(ax, expected_model(tf), name='Model', pos=(0.8, 0.1))
+            
+            if opt.fit:
+                tf_model = fit_model(tf, index=opt.index)
+                tf_model_data = np.exp(tf_model(freq))
+                show_periodogram(ax, tf_model_data, rate=tf.rate, alpha=1.0, color='g', label='fit')
+                show_model_parameters(ax, tf_model, name='Fit')
+            
+            
+            fig.savefig(filename)
     print(filename)
     print("Created {:d} images.".format(query.count()))
 

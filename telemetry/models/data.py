@@ -120,13 +120,13 @@ class SVCoefficients(Telemetry):
         obj.write()
         return obj
 
-class Coefficients(Telemetry):
+class HCoefficients(Telemetry):
     
-    __h5path__ = "hybird"
+    __h5path__ = "hmatrix"
     
-    dataset = relationship("Dataset", backref=backref('coefficients', uselist=False), uselist=False)
+    dataset = relationship("Dataset", backref=backref('hcoefficients', uselist=False), uselist=False)
     
-    coefficients = DataAttribute("coefficients")
+    hcoefficients = DataAttribute("hcoefficients")
     
     @classmethod
     def from_dataset(cls, dataset):
@@ -137,6 +137,7 @@ class Coefficients(Telemetry):
         
         data = dataset.read()
         nacross = int(dataset.mode.split('x',1)[0])
+        
         ns = { 16 : 144 }[nacross]
         slopes = data[:,0:ns*2]
         
@@ -148,10 +149,93 @@ class Coefficients(Telemetry):
         coeffs = vm * slvec
         data = coeffs.view(np.ndarray).T
         
-        obj.coefficients = data
+        obj.hcoefficients = data
         obj.write()
         return obj
     
+
+class Phase(Telemetry):
+    
+    __h5path__ = "phase"
+    
+    dataset = relationship("Dataset", backref=backref('phase', uselist=False), uselist=False)
+    
+    phase = DataAttribute("phase")
+    
+    @classmethod
+    def from_dataset(cls, dataset):
+        """Create slopes item from dataset."""
+        obj = cls(filename = dataset.processed_filename, dataset = dataset)
+        if obj.check():
+            return obj
+        
+        data = dataset.read()
+        if data.shape[-1] == 2402:
+            phase = data[:,-1024:]
+        else:
+            raise ValueError("Telemetry {0} doesn't contain phase points.".format(dataset.sequence_number))
+        
+        obj.phase = phase
+        obj.write()
+        return obj
+    
+class PseudoPhase(Telemetry):
+    
+    __h5path__ = "pseudophase"
+    
+    dataset = relationship("Dataset", backref=backref('pseudophase', uselist=False), uselist=False)
+    
+    pseudophase = DataAttribute("pseudophase")
+    
+    @classmethod
+    def from_dataset(cls, dataset):
+        """Create pseudophase item from dataset."""
+        obj = cls(filename = dataset.processed_filename, dataset = dataset)
+        if obj.check():
+            return obj
+        
+        data = dataset.read()
+        nacross = int(dataset.mode.split('x',1)[0])
+        ns = { 16 : 144 }[nacross]
+        slopes = data[:,0:ns*2]
+        
+        slvec = np.matrix(slopes.T)
+        slvec.shape = (slvec.shape[0], slvec.shape[1], 1)
+        
+        vm = get_matrix("L")
+        coeffs = vm * slvec
+        data = coeffs.view(np.ndarray).T
+        
+        obj.pseudophase = data
+        obj.write()
+        return obj
+        
+class Tweeter(Telemetry):
+    
+    __h5path__ = "mirrors"
+    
+    dataset = relationship("Dataset", backref=backref('tweeter', uselist=False), uselist=False)
+    
+    tweeter = DataAttribute("tweeter")
+    
+    @classmethod
+    def from_dataset(cls, dataset):
+        """Create tweeter item from dataset."""
+        obj = cls(filename = dataset.processed_filename, dataset = dataset)
+        if obj.check():
+            return obj
+        
+        data = dataset.read()
+        nacross = int(dataset.mode.split('x',1)[0])
+        ns = { 16 : 144 }[nacross]
+        
+        start = ns * 2 + (2 if "LGS" in dataset.mode else 0)
+        stop = start + 1024
+        tweeter = data[:,start:stop]
+        tweeter.shape = (-1, 32, 32)
+        obj.tweeter = tweeter
+        obj.write()
+        return obj
 
 class FourierCoefficients(Telemetry):
     """docstring for FourierCoefficients"""
@@ -160,7 +244,7 @@ class FourierCoefficients(Telemetry):
     
     dataset = relationship("Dataset", backref=backref('fmodes', uselist=False), uselist=False)
     
-    fmodes = DataAttribute("fcoefficients")
+    fcoefficients = DataAttribute("fcoefficients")
     
     @classmethod
     def from_dataset(cls, dataset):
@@ -182,7 +266,7 @@ class FourierCoefficients(Telemetry):
         coeffs = vm * slvec
         data = coeffs.view(np.ndarray).T
         
-        obj.coefficients = data
+        obj.fcoefficients = data
         obj.write()
         return obj
     

@@ -101,7 +101,7 @@ class FileBase(Base):
         """Read in the data from a file."""
         with h5py.File(self.filename) as f:
             if self.__h5path__ is not None:
-                g = f.require_group(self.__h5path__)
+                g = f[self.__h5path__]
             else:
                 g = f
             for d in self._iter_data():
@@ -113,7 +113,11 @@ class FileBase(Base):
         
         with h5py.File(self.filename) as f:
             if self.__h5path__ is not None:
-                g = f.require_group(self.__h5path__)
+                try:
+                    g = f.require_group(self.__h5path__)
+                except:
+                    del f[self.__h5path__]
+                    g = f.require_group(self.__h5path__)
             else:
                 g = f
             for d in self._iter_data():

@@ -9,12 +9,13 @@ def main():
     """Main function for parsing."""
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("kind", choices=set("sx sy coefficients".split()))
+    parser.add_argument("kind", choices=set("sx sy hcoefficients fmodes phase pseudophase".split()))
     opt = parser.parse_args()
     
+    import numpy as np
     import matplotlib
-    # matplotlib.use("Agg")
-    from telemetry import connect
+    matplotlib.use("Agg")
+    from telemetry import connect, makedirs
     Session = connect()
     from telemetry.models import Dataset, Periodogram, PeriodogramStack, Sequence
     session = Session()
@@ -26,15 +27,22 @@ def main():
     query = session.query(PeriodogramStack).filter(PeriodogramStack.kind == opt.kind)
     for periodogram in ProgressBar(query.all()):
         
-        filename, ext = os.path.splitext(periodogram.filename)
+        filename = os.path.join(periodogram.sequence.figure_path, "periodogram", "s{0:04d}.periodogram.{1:s}.png".format(periodogram.sequence.id, opt.kind))
+        makedirs(os.path.dirname(filename))
+        if os.path.exists(filename):
+            continue
         
         data = periodogram.read()
+        if np.all(data[np.isfinite(data)] == 0.0):
+            continue
         
         import matplotlib.pyplot as plt
+        plt.clf()
         ax = plt.gca()
         show_periodogram(ax, data, rate=periodogram.rate)
-        ax.set_title('{0:s} Periodogram for s{1:04d}'.format(opt.kind, periodogram.sequence.id))
-        plt.savefig(filename + ".periodogram.{0:s}.png".format(opt.kind))
+        
+        ax.set_title('{0:s} Periodogram for s{1:04d} "{2:s}"'.format(opt.kind.capitalize(), periodogram.sequence.id, periodogram.sequence.loop))
+        plt.savefig(filename)
     print("Created {:d} images.".format(query.count()))
 
 if __name__ == '__main__':

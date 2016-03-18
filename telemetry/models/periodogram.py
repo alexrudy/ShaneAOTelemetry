@@ -24,7 +24,9 @@ def frequencies(length, rate):
 KMAP = {
     'sx' : 'slopes',
     'sy' : 'slopes',
-    'coefficients' : 'coefficients',
+    'hcoefficients' : 'hcoefficients',
+    'phase' : 'phase',
+    'pseudophase' : 'pseudophase',
     'fmodes' : 'fmodes',
 }
 
@@ -96,7 +98,8 @@ class PeriodogramStack(_PeriodogramBase):
     def read(self):
         """Read from a file."""
         with h5py.File(self.filename) as f:
-            return f['periodograms'][self.kind][...]
+            self.data = f['periodograms'][self.kind][...]
+        return self.data
     
     @classmethod
     def from_sequence(cls, sequence, kind, length, **kwargs):

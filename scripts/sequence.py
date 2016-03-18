@@ -42,7 +42,8 @@ def main():
     if opt.verbose:
         for sequence in session.query(Sequence).all():
             dataset = sequence.datasets[0]
-            print("{:3d} = {:4d} - {:3d} ({:3d}) -> {:3d} : {:.2f} {:s}".format(sequence.id, dataset.sequence_number, dataset.sequence_number+len(sequence.datasets), len(sequence.datasets), sequence.pair_id, sequence.gain, sequence.loop))
+            pair_id = "{:3d}".format(sequence.pair_id) if sequence.pair_id is not None else "N/A"
+            print("{:3d} = {:4d} - {:3d} ({:3d}) -> {:s} : {:.2f} {:s}".format(sequence.id, dataset.sequence_number, dataset.sequence_number+len(sequence.datasets), len(sequence.datasets), pair_id, sequence.gain, sequence.loop))
 
 if __name__ == '__main__':
     main()

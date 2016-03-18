@@ -25,6 +25,8 @@ class Sequence(_DatasetBase):
         attrs = self.matched_pair_attributes()
         matchq = object_session(self).query(Sequence).filter_by(**attrs).filter(Sequence.id != self.id).filter(Sequence.loop != self.loop)
         matches = matchq.order_by(func.abs(Sequence.number - self.number)).all()
+        if not len(matches):
+            return None
         closest = min(abs(s.number - self.number) for s in matches)
         matches = filter(lambda s : abs(s.number - self.number) <= closest, matches)
         matches.sort(key=lambda m : abs(len(m.datasets) - len(self.datasets)))
