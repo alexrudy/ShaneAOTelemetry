@@ -63,4 +63,6 @@ tests/dump
 pymodules/
 dev/
 *.db
-
+*.png
+*.txt
+*.mp4
