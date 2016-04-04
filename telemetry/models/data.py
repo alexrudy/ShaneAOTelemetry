@@ -210,6 +210,45 @@ class PseudoPhase(Telemetry):
         obj.write()
         return obj
         
+class PseudoPhaseNTT(Telemetry):
+    
+    __h5path__ = "pseudophasentt"
+    
+    dataset = relationship("Dataset", backref=backref('pseudophasentt', uselist=False), uselist=False)
+    
+    pseudophasentt = DataAttribute("pseudophasentt")
+    
+    @classmethod
+    def from_dataset(cls, dataset):
+        """Create pseudophase item from dataset."""
+        obj = cls(filename = dataset.processed_filename, dataset = dataset)
+        if obj.check():
+            return obj
+        
+        data = dataset.read()
+        nacross = int(dataset.mode.split('x',1)[0])
+        ns = { 16 : 144 }[nacross]
+        slopes = data[:,0:ns*2]
+        
+        xslopes = slopes[:,0:ns]
+        xslopes -= xslopes.mean(axis=1)[:,None]
+        slopes[:,0:ns] = xslopes
+        yslopes = slopes[:,ns:2*ns]
+        yslopes -= yslopes.mean(axis=1)[:,None]
+        slopes[:,ns:2*ns] = yslopes
+        
+        slvec = np.matrix(slopes.T)
+        slvec.shape = (slvec.shape[0], slvec.shape[1], 1)
+        
+        vm = get_matrix("L")
+        coeffs = vm * slvec
+        data = coeffs.view(np.ndarray).T
+        
+        obj.pseudophasentt = data
+        obj.write()
+        return obj
+        
+        
 class Tweeter(Telemetry):
     
     __h5path__ = "mirrors"
@@ -302,7 +341,12 @@ class _DatasetBase(FileBase):
         """Collect the attributes which we might use to check sequencing."""
         return { 'rate' : self.rate, 'gain' : self.gain, 'centroid' : self.centroid, 
             'woofer_bleed' : self.woofer_bleed, 'tweeter_bleed' : self.tweeter_bleed,
-            'alpha' : self.alpha, 'mode' : self.mode, 'loop' : self.loop, 'date': self.date}
+            'alpha' : self.alpha, 'mode' : self.mode, 'loop' : self.loop, 'date': self.date, 'control_matrix' : self.control_matrix}
+    
+    def __repr__(self):
+        """Sensible representation."""
+        return "<{0} from {date:%Y-%m-%d} mode={mode:s} loop={loop:s} gain={gain:.2f}>".format(self.__class__.__name__, **self.get_sequence_attributes())
+    
     
 class Dataset(_DatasetBase):
     """A single dataset."""
@@ -314,7 +358,6 @@ class Dataset(_DatasetBase):
     
     # ShaneAO Operational parameters
     valid = Column(Boolean, default=True) # A flag to mark a header as unreliable.
-    
     
     @property
     def processed_filename(self):

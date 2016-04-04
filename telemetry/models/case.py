@@ -41,6 +41,10 @@ class Sequence(_DatasetBase):
         del attrs['gain']
         return attrs
         
+    def sequence_numbers(self):
+        """Return the sequence numbers."""
+        return [ dataset.sequence_number for dataset in self.datasets ]
+        
     @property
     def file_root(self):
         """File root is based on the first dataset."""

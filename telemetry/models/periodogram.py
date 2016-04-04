@@ -76,7 +76,7 @@ class Periodogram(_PeriodogramBase):
     @classmethod
     def from_dataset(cls, dataset, kind, length=None, **kwargs):
         """Create a peridogoram from an individual dataset."""
-        tel = getattr(dataset, KMAP[kind])
+        tel = getattr(dataset, KMAP.get(kind, kind))
         telemetry = getattr(tel, kind)
         if length is None:
             length = telemetry.shape[0]
