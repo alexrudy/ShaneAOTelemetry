@@ -36,6 +36,8 @@ def fit_and_plot_gains(gains, label, label_ypos, color, show_data=True, effectiv
     # plt.text(0.01, label_ypos, r"{} Fit: $m={:.2f}$ $c={:.2f}$".format(label, m, c), transform=plt.gca().transAxes)
 
 GAIN_MULTIPLIER = 4.0
+ELIMINTATE = [396, 405, 366]
+OUTPUT_DIRECTORY = os.path.join("gain_trends","2016-03-23")
 
 def _make_row(tf, tfm, boosted=False):
     """Make a table row."""
@@ -48,8 +50,6 @@ def _make_row(tf, tfm, boosted=False):
     row['fit sigma'] = tfm.gain.std()
     row['seq'] = "{:d}-{:d}".format(min(tf.sequence.sequence_numbers()), max(tf.sequence.sequence_numbers()))
     return row
-
-ELIMINTATE = [396, 405, 366]
 
 def main():
     """Main function for parsing."""
@@ -101,7 +101,7 @@ def main():
         plt.xlim(0.0, 2.0)
         plt.ylim(0.0, 0.8)
         plt.legend(loc='upper left', fontsize='small')
-        plt.savefig("gain-trend-{:d}.png".format(rate))
+        plt.savefig(os.path.join(OUTPUT_DIRECTORY,"gain-trend-{:d}.png".format(rate)))
         
         plt.figure(figsize=(6,5))
         fit_and_plot_gains(boosted_gain, r"${:.0f}\times$Boosted".format(GAIN_MULTIPLIER), 0.95, "g", effective=False)
@@ -112,12 +112,12 @@ def main():
         x = np.linspace(0.0, 2.0, 50)
         plt.plot(x, x, alpha=0.1, color='k', ls=":")
         plt.gca().set_aspect('equal')
-        plt.savefig("gain-new-{:d}.png".format(rate))
+        plt.savefig(os.path.join(OUTPUT_DIRECTORY,"gain-new-{:d}.png".format(rate)))
     
     master = vstack(tables)
     master['fit gain'].format = "{:.3f}"
     master['fit sigma'].format = "{:.3f}"
-    master.write("gain_trends.txt", format='ascii.fixed_width')
+    master.write(os.path.join(OUTPUT_DIRECTORY,"gain_trends.txt"), format='ascii.fixed_width')
     
 if __name__ == '__main__':
     main()
