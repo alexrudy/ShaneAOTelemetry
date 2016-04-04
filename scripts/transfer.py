@@ -3,19 +3,20 @@
 Create telemetry objects from datasets.
 """
 
-import sys, argparse, glob, os
+import sys, argparse, glob, os, datetime
 
 def main():
     """Main function for parsing."""
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("kind", choices=set("sx sy coefficients fmodes".split()))
+    parser.add_argument("kind", choices=set("sx sy hcoefficients fmodes phase pseudophase".split()))
     parser.add_argument("--index", type=int, default=None, help="Choose an index.")
     parser.add_argument("--fit", action='store_true', help="Redo the fit.")
     
     opt = parser.parse_args()
     import astropy.units as u
     import matplotlib
+    matplotlib.rcParams['text.usetex'] = False
     import numpy as np
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -31,6 +32,7 @@ def main():
     fig = plt.figure()
     
     query = session.query(TransferFunction).filter(TransferFunction.kind == opt.kind).join(Sequence).filter(Sequence.id > 24)
+    query = query.filter(Sequence.date == datetime.datetime(2016,03,24,0,0,0))
     for tf in ProgressBar(query.all()):
         
         filename = os.path.join(tf.sequence.figure_path, "transfer", "s{0:04d}".format(tf.sequence.id))

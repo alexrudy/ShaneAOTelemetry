@@ -3,18 +3,19 @@
 Create telemetry objects from datasets.
 """
 
-import sys, argparse, glob, os
+import sys, argparse, glob, os, datetime
 
 def main():
     """Main function for parsing."""
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("kind", choices=set("sx sy hcoefficients fmodes phase pseudophase".split()))
+    parser.add_argument("kind", choices=set("sx sy hcoefficients fmodes phase pseudophase pseudophasentt".split()))
     opt = parser.parse_args()
     
     import numpy as np
     import matplotlib
     matplotlib.use("Agg")
+    matplotlib.rcParams['text.usetex'] = False
     from telemetry import connect, makedirs
     Session = connect()
     from telemetry.models import Dataset, Periodogram, PeriodogramStack, Sequence
@@ -24,16 +25,18 @@ def main():
     
     n_telemetry = 0
     
-    query = session.query(PeriodogramStack).filter(PeriodogramStack.kind == opt.kind)
+    query = session.query(PeriodogramStack).filter(PeriodogramStack.kind == opt.kind).join(Sequence).filter(Sequence.date == datetime.datetime(2016,03,24,0,0,0))
     for periodogram in ProgressBar(query.all()):
         
         filename = os.path.join(periodogram.sequence.figure_path, "periodogram", "s{0:04d}.periodogram.{1:s}.png".format(periodogram.sequence.id, opt.kind))
         makedirs(os.path.dirname(filename))
         if os.path.exists(filename):
             continue
-        
-        data = periodogram.read()
-        if np.all(data[np.isfinite(data)] == 0.0):
+        try:
+            data = periodogram.read()
+            if np.all(data[np.isfinite(data)] == 0.0):
+                continue
+        except KeyError as e:
             continue
         
         import matplotlib.pyplot as plt

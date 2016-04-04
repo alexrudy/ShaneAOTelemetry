@@ -11,18 +11,19 @@ def task(func):
     __tasks[func.__name__] = func
     return func
     
-DATA_KINDS = set("sx sy hcoefficients fmodes phase pseudophase".split())
+DATA_KINDS = set("sx sy hcoefficients fmodes phase pseudophase pseudophasentt".split())
     
 def main():
     """Set up the argument parser."""
     
-    from telemetry.models import HCoefficients, Phase, FourierCoefficients, PseudoPhase, Slopes, Tweeter
+    from telemetry.models import HCoefficients, Phase, FourierCoefficients, PseudoPhase, Slopes, Tweeter, PseudoPhaseNTT
     create(HCoefficients)
     create(Phase)
     create(FourierCoefficients)
     create(Slopes)
     create(PseudoPhase)
     create(Tweeter)
+    create(PseudoPhaseNTT)
     
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("task", choices=__tasks.keys())
@@ -48,13 +49,15 @@ def create(model):
     
         n_telemetry = 0
         print("Generating {0}...".format(model.__name__))
-    
-        for dataset in ProgressBar(session.query(Dataset).all()):
+        query = session.query(Dataset)
+        # set(session.query(Dataset).join(model, isouter=True).all())
+        for dataset in ProgressBar(query.all()):
             if opt.force or not session.query(model).filter(model.dataset_id == dataset.id).count() >= 1:
                 try:
                     obj = model.from_dataset(dataset)
                     session.add(obj)
                 except ValueError as e:
+                    print(e)
                     pass
                 else:
                     n_telemetry += 1
@@ -86,8 +89,10 @@ def periodograms(parser, args):
                 try:
                     pgram = PeriodogramStack.from_sequence(sequence, kind, opt.length, suppress_static=opt.suppress_static)
                     session.add(pgram)
-                except Exception as e:
-                    print(repr(e))
+                except AttributeError as e:
+                    print(e)
+                except KeyError as e:
+                    continue
                 else:
                     n_telemetry += 1
     session.commit()
@@ -108,14 +113,19 @@ def tf(parser, args):
     
     for sequence in ProgressBar(session.query(Sequence).filter(Sequence.pair_id != None, Sequence.loop == "closed").all()):
         for kind in DATA_KINDS:
-            tf = TransferFunction.from_periodogram(sequence.periodograms[kind])
-            session.add(tf)
+            try:
+                tf = TransferFunction.from_periodogram(sequence.periodograms[kind])
+            except KeyError as e:
+                pass
+            else:
+                session.add(tf)
     print("Created {0:d} transfer functions.".format(len(session.new) + len(session.dirty)))
     session.commit()
     
 @task
 def tffit(parser, args):
     """Make a transfer function fits."""
+    parser.add_argument("-f", "--force", action='store_true', help="Force")
     opt = parser.parse_args(args)
     
     from telemetry import connect

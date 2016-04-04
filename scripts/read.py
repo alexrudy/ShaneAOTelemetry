@@ -11,7 +11,7 @@ def main():
     new_datasets = 0
     directories = set()
     for path in sys.argv[1:]:
-        query_path = os.path.join(path, '*.fits')
+        query_path = os.path.expanduser(os.path.join(path, '*.fits'))
         print("Importing files which match '{0}'".format(query_path))
         for filename in glob.iglob(query_path):
             if not session.query(Dataset).filter(Dataset.filename == filename).count():
