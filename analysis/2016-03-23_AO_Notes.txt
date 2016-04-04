@@ -1,0 +1,489 @@
+
+AO ENGINEERING 2016-03-22/23; 2016-03-23/24
+===========================================
+Please find below the logs for the calibrations and tests performed on
+the afternoon of 2016-03-22. These include additional comparisons between 
+default and Rudy control matrices. 
+
+In addition, please find the logs for the calibrations a observations 
+performed on the night of 2016-03-23. These observations primarily 
+address Alex's requested tests and follow the prescription he provided.
+
+- Note that at one point, we experienced a full disk on real due to 
+  the telemetry logging. 
+  This resulted in an incomplete set of logged telemetry and forced 
+  the deletion some old data. 
+  Since there was no elegant way (e.g. Ctrl-c) to exit the hung 
+  telemetry logging script, it was necessary to kill and restart 
+  the shaneao software.
+
+  Since we generate a lot of telemetry files tonight, suggest that
+  they be recovered from real.ucolick.org at the earliest opportunity 
+  and the subdirectories on this machine be purged.
+
+Alex's tests took *much* longer than expected. As a result, we did 
+not manage to do any globualar cluster imaging.
+
+
+2016-03-22/2016-03-23 AO OBSERVING LOG
+======================================
+AFTERNOON ACTIVITIES...
+
+Mode  Centroider Gain  "Strehl"  TBleed  WBleed  Resultant Centroider  Control Matrix  Notes
+
+16x COG     G=0.3  0.64  TBleed=0.900  WBleed=0.995  hs-2015-03-22-GOG_16xLGS.fits     (Default CM)  WFScam rate=250
+16x QUAD    G=0.3  0.69  TBleed=0.900  WBleed=0.995  hs-2015-03-22-QUAD_16xLGS.fits    (Default CM)  WFScam rate=250
+16x BINQUAD G=0.3  0.68  TBleed=0.900  WBleed=0.995  hs-2016-03-22-BINQUAD_16xLGS.fits (Default CM)  WFScam rate=250
+
+ 8x COG     G=0.1  0.67  TBleed=0.900  WBleed=0.995  hs-2016-03-22-COG_8xLGS.fits      (Default CM)  WFScam rate=250
+ 8x QUAD    G=0.1  0.64  TBleed=0.900  WBleed=0.995  hs-2016-03-22-QUAD_8xLGS.fits     (Default CM)  WFScam rate=250
+ 8x BINQUAD G=0.1  0.64  TBleed=0.900  WBleed=0.995  hs-2016-03-22-BINQUAD_8xLGS.fits  (Default CM)  WFScam rate=250
+
+16x COG     G=0.3  0.27  TBleed=0.900  WBleed=0.995  hs-2015-03-22-COG-RUDY_16xLGS.fits      (Rudy CM)  WFScam rate=250
+16x QUAD    G=0.3  0.62  TBleed=0.900  WBleed=0.995  hs-2015-03-22-QUAD-RUDY_16xLGS.fits     (Rudy CM)  WFScam rate=250
+16x BINQUAD G=0.3  0.55  TBleed=0.900  WBleed=0.995  hs-2016-03-22-BINQUAD-RUDY_16xLGS.fits  (Rudy CM)  WFScam rate=250
+
+Where,
+
+Rudy CM = controlMatrix_16x.incgain.RUDY.fits
+
+Default = controlMatrix_16x.fits
+
+
+FILES           FILTER  DESCRIPTION        T_INT/s   COMMENT
+=============   ======  =================  =======   ====================================================================
+0001--0453      FeII    Optimize/Align     0.11      Image Sharpening
+0454            Ks      Junk               1.5       junk
+0455            Ks      Flat Field Dome    12.0      16000 counts 
+
+0456--0460      Ks      IMG Flat Dome Ks   12.0      ca 16000 counts
+0461--0465      H       IMG Flat Dome H    12.0      ca 12000 counts
+0466--0470      J       IMG Flat Dome J    40.0      ca 11000 counts
+
+CLOSED --- HUMIDITY
+
+-------------------------------------------------------------------------------------------------------------------------
+
+2016-03-23/2016-03-24 AO OBSERVING LOG
+======================================
+
+AFTERNOON ACTIVITIES...
+
+Mode  Centroider Gain  "Strehl"  TBleed  WBleed  Resultant Centroider  Control Matrix  Notes
+
+16x COG     G=0.3  0.62  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits     (Default CM)  WFScam rate=250
+16x QUAD    G=0.3  0.69  TBleed=0.900  WBleed=0.995  hs-2015-03-23-QUAD_16xLGS.fits    (Default CM)  WFScam rate=250
+16x BINQUAD G=0.3  0.69  TBleed=0.900  WBleed=0.995  hs-2016-03-23-BINQUAD_16xLGS.fits (Default CM)  WFScam rate=250
+
+ 8x COG     G=0.1  0.65  TBleed=0.900  WBleed=0.995  hs-2016-03-23-COG_8xLGS.fits      (Default CM)  WFScam rate=250
+ 8x QUAD    G=0.1  0.66  TBleed=0.900  WBleed=0.995  hs-2016-03-23-QUAD_8xLGS.fits     (Default CM)  WFScam rate=250
+ 8x BINQUAD G=0.1  0.64  TBleed=0.900  WBleed=0.995  hs-2016-03-23-BINQUAD_8xLGS.fits  (Default CM)  WFScam rate=250
+
+
+FILES           FILTER  DESCRIPTION        T_INT/s   COMMENT
+=============   ======  =================  =======   ====================================================================
+0001--0201      FeII    Alignment           0.11      Afternoon alignment
+0202--0203      Ks      Junk                1.5       Junk following alignment and re-windowing
+
+TWILIGHT SKY FLATS... 
+
+Note: Light cloud / structure / variable --- probably not ideal.
+
+FILES           FILTER  DESCRIPTION        T_INT/s   COMMENT
+=============   ======  =================  =======   ====================================================================
+0204--0206      Ks      IMG Flat Sky        1.5       TEST counts ca 4000--11000 
+0207            Ks      IMG Flat Sky        4.5       Counts ca 5000 
+0208--0214      Ks      IMG Flat Sky       15.0       Counts ca 11000, 18000, 14000, 30000, 17000, 26000, 18000 
+0215--0217      H       IMG Flat Sky        5.0       Counts ca 22000--Saturated
+0218--0226      H       IMG Flat Sky        1.5       Counts ca 19000, 18000, 20000, Saturated, 20000, 22000, 17000
+0227--0233      J       IMG Flat Sky        1.5       Counts ca 20000, 21000, 20000, 15000, 17000, 8000, 16000
+0234--0236      Ks      IMG Flat Sky       20.0       Counts ca 27000, 24000, 35000
+0237--0241      Ks      IMG Flat Sky       15.0       Counts ca 20000, 16000, 29000, 24000, 30000
+0242--0246      H       IMG Flat Sky        1.5       Counts ca 13000, 16000, 16000, 15000, 17000
+0247--0253      J       IMG Flat Sky        1.5       Counts ca 11000, 14000, 16000, 17000, 15000, 10000, 7000
+
+SEEING DETERMINATIONS + OPTIMIZATION...
+
+Note: SON Seeing estimate 1.5 arcsec
+
+FILES           FILTER  DESCRIPTION        T_INT/s   COMMENT
+=============   ======  =================  =======   ====================================================================
+0254--0255      Ks      HD093014            3.0       Seeing 166--179. WFScam =  50 Hz; TTcam = 250 Hz   
+0256--0257      Ks      HD093014            3.0       Seeing 180--194. WFScam = 500 Hz; TTcam = 500 Hz   
+
+
+SEEING AND FOCUS...
+
+SON Seeing: circa 1.5 arcsec; Focus: NGS=542.0
+
+mean seeing (l) is 0.65 arcsec
+mean seeing (t) is 0.76 arcsec
+
+genSkyRefcents 16x hs-2015-11-29-COG_16xLGS.fits 1.4--0.9
+
+FILES           FILTER  DESCRIPTION        T_INT/s   COMMENT
+=============   ======  =================  =======   ====================================================================
+0258--0273      Ks/BrG  HD093014            1.5--4.0  Tests
+
+0274--0277      BrG     HD093014            4.0       G=0.5, St=0.23--0.29, FWHM=0.17--0.21 onSky
+0278--0280      BrG     HD093014            4.0       G=0.7, St=0.25--0.26, FWHM=0.18--0.19 onSky
+0281--0282      BrG     HD093014            4.0       G=0.8, St=0.25--0.23, FWHM=0.19--0.22 onSky
+
+0283--0285      BrG     HD093014            4.0       G=0.8, St=0.33--0.37, FWHM=0.16--0.16 Default refcents
+0286--0288      BrG     HD093014            4.0       G=0.7, St=0.24--0.30, FWHM=0.17--0.18 Default refcents
+0289--0291      BrG     HD093014            4.0       G=0.6, St=0.35--0.34, FWHM=0.15--0.16 Default refcents 
+0292--0297      BrG     HD093014            4.0       G=0.5, St=0.25--0.41, FWHM=0.17--0.15 Default refcents <--
+0298--0301      BrG     HD093014            4.0       G=0.4, St=0.37--0.39, FWHM=0.15--0.15 Default refcents 
+
+Note:
+
+  Strange results from on sky optimization: better performance with Default refcent 
+  files generated during afternoon calibration than from using the measured seeing
+  convolved via genSkyRefcents. Seeing was varible, so tried convolving with seeing 
+  values of 1.4, 1.2, 1.0, 0.9 and 0.7 --- in all cases, a cruciform distortion was 
+  introduced into the image. 
+
+  Hence we adopted the default reference centriod for on sky observations and
+  optimized to a gain (in variable conditions) of 0.5.
+
+
+ON-SKY PERFORMANCE OF INCREASED GAIN MATRIX
+===========================================
+
+Default Control Matrix, WFSCam rate = 500 Hz, Gain = 0.5...
+
+UT08:00 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Default CM) Open Loop telemetry 3--12
+
+0304--0305      BrG     HD093014            4.0       G=0.5, St=0.35--0.40, FWHM=0.15 Default refcents 
+
+UT08:05 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Default CM) Closed Loop telemetry 13--22
+
+0306--0315      BrG     HD093014            4.0       G=0.5, St=0.36,       FWHM=0.16 Default refcents 
+
+
+Rudy Control Matrix, WFSCam rate = 500 Hz, Gain = 0.5... 
+
+UT08:18 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Rudy CM) Open Loop telemetry 23--32
+
+0316--0317      BrG     HD093014            4.0       G=0.5, St=N/A,        FWHM=N/A  Default refcents, WFS waffle! 
+
+UT08:23 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Rudy CM) Closed Loop telemetry 33--42
+
+0318--0327      BrG     HD093014            4.0       G=0.5, St=N/A,        FWHM=N/A  Default refcents, WFS waffle! 
+
+-------------------------------------------------------------------------------------------------------------------
+
+Default Control Matrix, WFSCam rate = 500 Hz, Gain = 0.4...
+
+UT08:30 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Default CM) Open Loop telemetry 43--52
+
+0328--0329      BrG     HD093014            4.0       G=0.4, St=0.36        FWHM=0.15 Default refcents 
+
+UT08:30 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Default CM) Closed Loop telemetry 53--62
+
+0330--0339      BrG     HD093014            4.0       G=0.4, St=0.30--0.37  FWHM=0.15--0.17 Default refcents 
+
+
+Rudy Control Matrix, WFSCam rate = 500 Hz, Gain = 0.4...
+
+UT08:41 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Rudy CM) Open Loop telemetry 63--72
+
+0340--0341      BrG     HD093014            4.0       G=0.4, St=N/A         FWHM=N/A  Default refcents, WFS waffle! 
+
+UT08:46 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Rudy CM) Closed Loop telemetry 73--82
+
+0342--0351      BrG     HD093014            4.0       G=0.4, St=N/A         FWHM=N/A  Default refcents, WFS waffle! 
+
+-------------------------------------------------------------------------------------------------------------------
+
+Default Control Matrix, WFSCam rate = 500 Hz, Gain = 0.3...
+
+UT08:52 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Default CM) Open Loop telemetry 83--92
+
+0352--0353      BrG     HD093014            4.0       G=0.3, St=0.27        FWHM=0.18  Default refcents 
+
+UT08:57 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Default CM) Closed Loop telemetry 93--102
+
+0354--0363      BrG     HD093014            4.0       G=0.3, St=0.25        FWHM=0.19  Default refcents
+
+
+Rudy Control Matrix, WFSCam rate = 500 Hz, Gain = 0.3...
+ 
+UT09:04 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Rudy CM) Open Loop telemetry 103--112
+
+0364--0365      BrG     HD093014            4.0       G=0.3, St=0.20        FWHM=0.22  Default refcents, WFS waffle!
+
+UT09:07 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Rudy CM) Closed Loop telemetry 113--122
+
+0366--0375      BrG     HD093014            4.0       G=0.3, St=0.25        FWHM=0.19  Default refcents, WFS waffle!
+
+-------------------------------------------------------------------------------------------------------------------
+
+Default Control Matrix, WFSCam rate=500 Hz, Gain=0.2, Airmass=1.16...
+
+UT09:13 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Default CM) Open Loop telemetry 123--132
+
+0376--0377      BrG     HD093014            4.0       G=0.2, St=0.1        FWHM=0.39  Default refcents 
+
+UT09:16 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Default CM) Closed Loop telemetry 133--142
+
+0378--0387      BrG     HD093014            4.0       G=0.2, St=0.13--0.07  FWHM=0.32--0.70 Default refcents 
+
+
+Rudy Control Matrix, WFSCam rate = 500 Hz, Gain = 0.2, Airmass 1.17...
+
+UT09:21 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Rudy CM) Open Loop telemetry 143--152
+
+0388--0389      BrG     HD093014            4.0       G=0.2, St=0.29--0.22  FWHM=0.17--0.18 Default refcents, mild waffle!
+
+UT09:25 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Rudy CM) Closed Loop telemetry 153--162
+
+0390--0399      BrG     HD093014            4.0       G=0.2, St=0.34--0.19  FWHM=0.16--0.20 Default refcents, mild waffle!
+
+-------------------------------------------------------------------------------------------------------------------
+
+Default Control Matrix, WFSCam rate=500 Hz, Gain=0.1, Airmass=1.19...
+
+UT09:30 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Default CM) Open Loop telemetry 163--172
+
+0400--0401      BrG     HD093014            4.0       G=0.1, St=0.06--0.08   FWHM=0.70--0.52 Default refcents 
+
+UT09:35 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Default CM) Closed Loop telemetry 173--182
+
+0402--0411      BrG     HD093014            4.0       G=0.1, St=0.08--0.20   FWHM=0.53--0.24 Default refcents
+ 
+
+Rudy Control Matrix, WFSCam rate=500 Hz, Gain=0.1, Airmass=1.22...
+
+UT09:41 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Rudy CM) Open Loop telemetry 173--182
+
+0412--0413      BrG     HD093014            4.0       G=0.1, St=0.37--0.XX  FWHM=0.16--0.XX Default refcents
+
+UT09:44 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Rudy CM) Closed Loop telemetry 193--195
+
+* Not enough disk space free for automated telemetry recording.
+ 
+  As user@real.ucolick.org > /u/user/telemetry/ delete all fits files in directories between 2015-09-XX & 2016-01-XX
+
+0414--0413      BrG     HD093014            4.0       G=0.1, St=0.33--0.19  FWHM=0.17--0.16 Default refcents
+
+-------------------------------------------------------------------------------------------------------------------
+
+Default Control Matrix, WFSCam rate=250 Hz, Gain=0.4, Airmass=1.30...
+
+UT10:08 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Default CM) Open Loop telemetry 196--205
+
+0424--0425      BrG     HD093014            4.0       G=0.4, St=0.31--0.33   FWHM=0.17--0.16 Default refcents 
+
+UT10:13 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Default CM) Closed Loop telemetry 206--215
+
+0426--0435      BrG     HD093014            4.0       G=0.4, St=0.26--0.12   FWHM=0.19--0.29 Default refcents 
+
+
+Rudy Control Matrix, WFSCam rate=250 Hz, Gain=0.4, Airmass=1.35...
+
+UT10:20 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Rudy CM) Open Loop telemetry 216--225
+
+0436--0437      BrG     HD093014            4.0       G=0.4, St=0.21--0.17  FWHM=0.19--0.22 Default refcents, Waffle!
+
+UT10:26 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Rudy CM) Closed Loop telemetry 226--235
+
+0438--0447      BrG     HD093014            4.0       G=0.4, St=0.15--0.17  FWHM=0.23--0.26 Default refcents, Waffle!
+
+-------------------------------------------------------------------------------------------------------------------
+
+Change target...
+
+-------------------------------------------------------------------------------------------------------------------
+
+Default Control Matrix, WFSCam rate=250 Hz, Gain=0.3, Airmass=1.00...
+
+UT10:37 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Default CM) Open Loop telemetry 236--245
+
+0448--0449      BrG     HD129046            4.0       G=0.3, St=0.24--0.26   FWHM=0.20--0.17 Default refcents 
+
+UT10:41 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Default CM) Closed Loop telemetry 246--255
+
+0450--0459      BrG     HD129046            4.0       G=0.3, St=0.33--0.35   FWHM=0.15--0.16 Default refcents 
+
+
+Rudy Control Matrix, WFSCam rate=250 Hz, Gain=0.3, Airmass=1.00...
+
+UT10:48 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Rudy CM) Open Loop telemetry 256--265
+
+0460--0461      BrG     HD129046            4.0       G=0.3, St=0.36--0.39   FWHM=0.15--0.16 Default refcents, Waffle 
+
+UT10:53 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Rudy CM) Closed Loop telemetry 266--275
+
+0462--0471      BrG     HD129046            4.0       G=0.3, St=0.34--0.16   FWHM=0.XX--0.XX Default refcents, Waffle 
+
+-------------------------------------------------------------------------------------------------------------------
+
+Default Control Matrix, WFSCam rate=250 Hz, Gain=0.2, Airmass=1.00...
+
+UT11:01 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Default CM) Open Loop telemetry 276--285
+
+0472--0473      BrG     HD129046            4.0       G=0.2, St=0.22--0.17   FWHM=0.22--0.26 Default refcents 
+
+UT11:06 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Default CM) Closed Loop telemetry 286--295
+
+0474--0483      BrG     HD129046            4.0       G=0.2, St=0.23--0.17   FWHM=0.19--0.25 Default refcents 
+
+
+Rudy Control Matrix, WFSCam rate=250 Hz, Gain=0.2, Airmass=1.01...
+
+UT11:14 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Rudy CM) Open Loop telemetry 296--305
+
+0484--0485      BrG     HD129046            4.0       G=0.2, St=0.38--0.37   FWHM=0.15--0.15 Default refcents 
+
+UT11:18 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Rudy CM) Closed Loop telemetry 306--315
+
+0486--0495      BrG     HD129046            4.0       G=0.2, St=0.36--0.15   FWHM=0.15--0.16 Default refcents 
+
+-------------------------------------------------------------------------------------------------------------------
+
+Default Control Matrix, WFSCam rate=250 Hz, Gain=0.1, Airmass=1.02...
+
+UT11:26 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Default CM) Open Loop telemetry 316--325
+
+0496--0497      BrG     HD129046            4.0       G=0.1, St=0.12--0.11   FWHM=0.38--0.43 Default refcents 
+
+UT11:30 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Default CM) Closed Loop telemetry 326--335
+
+0498--0507      BrG     HD129046            4.0       G=0.1, St=0.13--0.XX   FWHM=0.36--0.XX Default refcents 
+
+
+Rudy Control Matrix, WFSCam rate=250 Hz, Gain=0.1, Airmass=1.02...
+
+UT11:38 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Rudy CM) Open Loop telemetry 336--345
+
+0508--0509      BrG     HD129046            4.0       G=0.1, St=0.27--0.36   FWHM=0.19--0.16 Default refcents 
+
+UT11:43 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Rudy CM) Closed Loop telemetry 346--355
+
+0510--0519      BrG     HD129046            4.0       G=0.1, St=0.33--0.33   FWHM=0.16--0.16 Default refcents 
+
+-------------------------------------------------------------------------------------------------------------------
+
+Default Control Matrix, WFSCam rate=1000 Hz, Gain=0.1, Airmass=1.03...
+
+UT11:51 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Default CM) Open Loop telemetry 356--365
+
+0520--0521      BrG     HD129046            4.0       G=0.1, St=0.07--0.08   FWHM=0.58--0.60 Default refcents 
+
+UT11:54 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Default CM) Closed Loop telemetry 366--375
+
+0522--0531      BrG     HD129046            4.0       G=0.1, St=0.09--0.09   FWHM=0.50--0.55 Default refcents 
+
+
+Rudy Control Matrix, WFSCam rate=1000 Hz, Gain=0.1, Airmass=1.04...
+
+UT11:59 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Rudy CM) Open Loop telemetry 376--375
+
+0532--0533      BrG     HD129046            4.0       G=0.1, St=0.22--0.22   FWHM=0.19--0.19 Default refcents 
+
+UT12:02 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Rudy CM) Closed Loop telemetry 386--385
+
+0534--0543      BrG     HD129046            4.0       G=0.1, St=0.20--0.17   FWHM=0.20--0.26 Default refcents 
+
+-------------------------------------------------------------------------------------------------------------------
+
+Default Control Matrix, WFSCam rate=1000 Hz, Gain=0.2, Airmass=1.05...
+
+UT12:07 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Default CM) Closed Loop telemetry 396--405
+
+UT12:08 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Default CM) Open Loop telemetry 406--415
+
+0544--0545      BrG     HD129046            4.0       G=0.2, St=0.18--0.15   FWHM=0.21--0.30 Default refcents 
+
+UT12:11 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Default CM) Closed Loop telemetry 416--425
+
+0546--0555      BrG     HD129046            4.0       G=0.2, St=0.17--0.14   FWHM=0.27--0.37 Default refcents 
+
+
+Rudy Control Matrix, WFSCam rate=1000 Hz, Gain=0.2, Airmass=1.06...
+
+UT12:15 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Rudy CM) Open Loop telemetry 426--435
+
+0556--0557      BrG     HD129046            4.0       G=0.2, St=0.17--0.14   FWHM=0.26--0.33 Default refcents
+
+UT12:17 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Rudy CM) Closed Loop telemetry 436--445
+ 
+0558--0567      BrG     HD129046            4.0       G=0.2, St=0.17--0.15   FWHM=0.26--0.30 Default refcents
+
+-------------------------------------------------------------------------------------------------------------------
+
+Default Control Matrix, WFSCam rate=1000 Hz, Gain=0.3, Airmass=1.07...
+
+UT12:23 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Default CM) Open Loop telemetry 446--455
+
+0568--0569      BrG     HD129046            4.0       G=0.3, St=0.23--0.15   FWHM=0.20--0.34 Default refcents 
+
+UT12:25 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Default CM) Closed Loop telemetry 456--465
+
+0570--0579      BrG     HD129046            4.0       G=0.3, St=0.17--0.22   FWHM=0.28--0.20 Default refcents 
+
+
+Rudy Control Matrix, WFSCam rate=1000 Hz, Gain=0.3, Airmass=1.08...
+
+UT12:30 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Rudy CM) Open Loop telemetry 466--475
+
+0580--0581      BrG     HD129046            4.0       G=0.3, St=0.12--0.13   FWHM=0.43--0.44 Default refcents 
+
+UT12:32 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Rudy CM) Closed Loop telemetry 476--485
+
+0582--0591      BrG     HD129046            4.0       G=0.3, St=0.12--0.12   FWHM=0.40--0.40 Default refcents 
+
+-------------------------------------------------------------------------------------------------------------------
+
+Default Control Matrix, WFSCam rate=1000 Hz, Gain=0.3, Airmass=1.10...
+
+UT12:37 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Default CM) Open Loop telemetry 486--495
+
+0592--0593      BrG     HD129046            4.0       G=0.3, St=0.17--0.22   FWHM=0.28--0.19 Default refcents 
+
+UT12:39 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Default CM) Closed Loop telemetry 496--505
+
+0594--0603      BrG     HD129046            4.0       G=0.3, St=0.20--0.22   FWHM=0.21--0.20 Default refcents 
+
+
+Rudy Control Matrix, WFSCam rate=1000 Hz, Gain=0.3, Airmass=1.11...
+
+UT12:44 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Rudy CM) Open Loop telemetry 506--515
+
+0604 --- Junk!
+
+0605--0606      BrG     HD129046            4.0       G=0.3, St=0.11--0.13   FWHM=0.49--0.39 Default refcents 
+
+UT12:47 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Rudy CM) Closed Loop telemetry 516--525
+
+0607--0616      BrG     HD129046            4.0       G=0.3, St=0.13--0.13   FWHM=0.45--0.46 Default refcents 
+
+-------------------------------------------------------------------------------------------------------------------
+
+Default Control Matrix, WFSCam rate=1000 Hz, Gain=0.4, Airmass=1.12...
+
+UT12:52 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Default CM) Open Loop telemetry 526--535
+
+0617--0618      BrG     HD129046            4.0       G=0.4, St=0.25--0.20   FWHM=0.17--0.22 Default refcents 
+
+UT12:54 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Default CM) Closed Loop telemetry 536--545
+
+0619--0628      BrG     HD129046            4.0       G=0.4, St=0.25--0.22   FWHM=0.19--0.22 Default refcents 
+
+
+Rudy Control Matrix, WFSCam rate=1000 Hz, Gain=0.3, Airmass=1.14...
+
+UT12:59 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Default CM) Open Loop telemetry 546--555
+
+0629--0630      BrG     HD129046            4.0       G=0.4, St=0.11--0.09   FWHM=0.40--0.49 Default refcents, Waffle 
+
+UT13:02 16x COG  TBleed=0.900  WBleed=0.995  hs-2015-03-23-GOG_16xLGS.fits  (Default CM) Closed Loop telemetry 556--565
+
+0631--0640      BrG     HD129046            4.0       G=0.4, St=0.09--0.12   FWHM=0.53--0.45 Default refcents, Waffle 
+
+-------------------------------------------------------------------------------------------------------------------
+
+13:08 Default Control Matrix installed.
+
+=== END OF FILE ===
