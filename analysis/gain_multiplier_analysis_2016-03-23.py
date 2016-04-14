@@ -12,7 +12,7 @@ import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 
-def fit_and_plot_gains(gains, label, label_ypos, color, show_data=True, effective=True):
+def fit_and_plot_gains(gains, label, label_ypos, color, show_data=True, effective=True, boost=None):
     """Fit and plot a bunch of gains."""
     import matplotlib.pyplot as plt
     
@@ -24,7 +24,7 @@ def fit_and_plot_gains(gains, label, label_ypos, color, show_data=True, effectiv
     model_noise = np.asarray(gains['fit sigma'])
     
     y = model_gain * np.sqrt(1.0/model_noise)
-    A = np.vstack([expected_gain, np.ones(len(expected_gain))]).T
+    A = np.vstack([expected_gain, np.zeros(len(expected_gain))]).T
     A *= np.sqrt(1.0/model_noise)[:,None]
     m, c = np.linalg.lstsq(A, y)[0]
     
@@ -33,7 +33,11 @@ def fit_and_plot_gains(gains, label, label_ypos, color, show_data=True, effectiv
     
     x = np.linspace(0.0, 2.0, 50)
     plt.plot(x, x * m + c, '-', label="{} Fit: $m={:.2f}$ $c={:.2f}$".format(label, m, c), color=color, alpha=0.3)
-    # plt.text(0.01, label_ypos, r"{} Fit: $m={:.2f}$ $c={:.2f}$".format(label, m, c), transform=plt.gca().transAxes)
+    
+    if boost is not None:
+        eboost = float(boost) / float(m)
+        plt.text(0.98, 0.98, "fit boost: {:.1f}".format(eboost), transform=plt.gca().transAxes, ha='right', va='top')
+    return m, c
 
 GAIN_MULTIPLIER = 4.0
 ELIMINTATE = [396, 405, 366]
@@ -104,9 +108,11 @@ def main():
         plt.savefig(os.path.join(OUTPUT_DIRECTORY,"gain-trend-{:d}.png".format(rate)))
         
         plt.figure(figsize=(6,5))
-        fit_and_plot_gains(boosted_gain, r"${:.0f}\times$Boosted".format(GAIN_MULTIPLIER), 0.95, "g", effective=False)
+        fit_and_plot_gains(boosted_gain, r"${:.0f}\times$Boosted".format(GAIN_MULTIPLIER), 0.95, "g", effective=False, boost=4.0)
         plt.ylim(0.0, 1.0)
         plt.xlim(0.0, 1.0)
+        plt.xlabel("Expected Gain Setting")
+        plt.ylabel("Gain from Model Fit")
         plt.title("ShaneAO at {:.0f}Hz".format(rate))
         plt.legend(loc='upper left', fontsize='small')
         x = np.linspace(0.0, 2.0, 50)
