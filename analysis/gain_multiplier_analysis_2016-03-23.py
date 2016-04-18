@@ -53,6 +53,7 @@ def _make_row(tf, tfm, boosted=False):
     row['fit gain'] = tfm.gain.mean()
     row['fit sigma'] = tfm.gain.std()
     row['seq'] = "{:d}-{:d}".format(min(tf.sequence.sequence_numbers()), max(tf.sequence.sequence_numbers()))
+    row['id'] = tf.sequence.id
     return row
 
 def main():
