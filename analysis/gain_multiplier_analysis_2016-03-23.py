@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 An analysis of the gain multiplier effect.
+
+These are the generic functions used by specific scripts.
 """
 
 import sys, argparse, glob, os
@@ -55,6 +57,40 @@ def _make_row(tf, tfm, boosted=False):
     row['seq'] = "{:d}-{:d}".format(min(tf.sequence.sequence_numbers()), max(tf.sequence.sequence_numbers()))
     row['id'] = tf.sequence.id
     return row
+    
+def plot_results(data, output_directory, boost_factor=4.0):
+    """Given a data table of results, plot it!"""
+    
+    boosted_only = data[data["CM"] == "Rudy"]
+    original = data[data["CM"] == "Default"]
+    
+    plt.figure()
+    fit_and_plot_gains(joint, "Combined", 0.85, "r", show_data=False)
+    fit_and_plot_gains(boosted_gain, r"${:.0f}\times$Boosted".format(GAIN_MULTIPLIER), 0.9, "g")
+    fit_and_plot_gains(gain, "Original", 0.95, "b")
+    x = np.linspace(0.0, 2.0, 50)
+    plt.title("ShaneAO at {:.0f}Hz".format(rate))
+    plt.plot(x, x, alpha=0.1, color='k', ls=":")
+    plt.xlabel("Expected Gain Setting")
+    plt.ylabel("Gain from Model Fit")
+    plt.xlim(0.0, 2.0)
+    plt.ylim(0.0, 0.8)
+    plt.legend(loc='upper left', fontsize='small')
+    plt.savefig(os.path.join(output_directory,"gain-trend-{:d}.png".format(rate)))
+    
+    plt.figure(figsize=(6,5))
+    fit_and_plot_gains(boosted_gain, r"${:.0f}\times$Boosted".format(GAIN_MULTIPLIER), 0.95, "g", effective=False, boost=4.0)
+    plt.ylim(0.0, 1.0)
+    plt.xlim(0.0, 1.0)
+    plt.xlabel("Expected Gain Setting")
+    plt.ylabel("Gain from Model Fit")
+    plt.title("ShaneAO at {:.0f}Hz".format(rate))
+    plt.legend(loc='upper left', fontsize='small')
+    x = np.linspace(0.0, 2.0, 50)
+    plt.plot(x, x, alpha=0.1, color='k', ls=":")
+    plt.gca().set_aspect('equal')
+    plt.savefig(os.path.join(output_directory,"gain-new-{:d}.png".format(rate)))
+    
 
 def main():
     """Main function for parsing."""

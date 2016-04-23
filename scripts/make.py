@@ -85,6 +85,8 @@ def periodograms(parser, args):
     print("Generating periodograms...")
     for sequence in ProgressBar(session.query(Sequence).all()):
         for kind in DATA_KINDS:
+            if not len(sequence.datasets):
+                continue
             if opt.force or kind not in sequence.periodograms:
                 try:
                     pgram = PeriodogramStack.from_sequence(sequence, kind, opt.length, suppress_static=opt.suppress_static)
@@ -136,11 +138,27 @@ def tffit(parser, args):
     session = Session()
     from astropy.utils.console import ProgressBar
     
-    for tf in ProgressBar(session.query(TransferFunction).all()):
+    if opt.force:
+        session.query(TransferFunctionModel).delete()
+        session.commit()
+    
+    # iterator = ProgressBar(session.query(TransferFunction).all())
+    iterator = session.query(TransferFunction).all()
+    for tf in iterator:
         if tf.kind in tf.sequence.transferfunctionmodels:
             continue
-        model = fit_all_models(tf)
-        tfm = TransferFunctionModel.from_model(tf, model)
+        tfm = TransferFunctionModel.from_tf(tf)
+        tfm._update_h5path()
+        try:
+            tfm.read()
+        except Exception as e:
+            print("Can't load models because {!r}".format(e))
+            print("Fitting {0}".format(tfm.filename))
+            model = fit_all_models(tf)
+            tfm.populate_from_model(model)
+            tfm.write()
+        else:
+            print("Model read just fine.")
         session.add(tfm)
     session.commit()
     

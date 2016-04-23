@@ -37,6 +37,19 @@ class FrequencyDomain(Base):
     length = Column(Integer)
     rate = Column(Float)
     kind = Column(String)
+
+    @property
+    def frequencies(self):
+        """Reuturn the frequencies"""
+        return frequencies(self.length, self.rate)
+    
+
+class _PeriodogramBase(FileBase, FrequencyDomain):
+    """A periodogram base."""
+    __abstract__ = True
+    __h5path__ = "periodograms"
+    created = Column(DateTime)
+    
     
     data = DataAttribute("data")
     
@@ -53,18 +66,6 @@ class FrequencyDomain(Base):
     def _read_data(self, g):
         """Read the periodogram from a file."""
         self.data = g[self.kind][...]
-        
-    @property
-    def frequencies(self):
-        """Reuturn the frequencies"""
-        return frequencies(self.length, self.rate)
-    
-
-class _PeriodogramBase(FileBase, FrequencyDomain):
-    """A periodogram base."""
-    __abstract__ = True
-    __h5path__ = "periodograms"
-    created = Column(DateTime)
     
 
 class Periodogram(_PeriodogramBase):

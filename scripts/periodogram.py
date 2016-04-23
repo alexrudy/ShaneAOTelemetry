@@ -17,6 +17,8 @@ def main():
     matplotlib.use("Agg")
     matplotlib.rcParams['text.usetex'] = False
     from telemetry import connect, makedirs
+    from sqlalchemy.sql import between
+    
     Session = connect()
     from telemetry.models import Dataset, Periodogram, PeriodogramStack, Sequence
     session = Session()
@@ -25,7 +27,11 @@ def main():
     
     n_telemetry = 0
     
-    query = session.query(PeriodogramStack).filter(PeriodogramStack.kind == opt.kind).join(Sequence).filter(Sequence.date == datetime.datetime(2016,03,24,0,0,0))
+    start_date = datetime.datetime(2016, 04, 22, 0, 0, 0)
+    end_date = start_date + datetime.timedelta(days=2)
+    
+    query = session.query(PeriodogramStack).filter(PeriodogramStack.kind == opt.kind).join(Sequence)
+    query = query.filter(between(Sequence.date, start_date, end_date))
     for periodogram in ProgressBar(query.all()):
         
         filename = os.path.join(periodogram.sequence.figure_path, "periodogram", "s{0:04d}.periodogram.{1:s}.png".format(periodogram.sequence.id, opt.kind))

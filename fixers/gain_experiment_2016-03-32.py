@@ -2,36 +2,40 @@
 from __future__ import print_function
 import sys, argparse, glob, os, datetime
 
+
+DEFAULT_MATRIX = "controlMatrix_16x.fits"
+BOOSTED_MATRIX = "controlMatrix_16x.incgain.RUDY.fits"
+
 CM_RANGES = [
-    (3, 22, "Default"),
-    (23, 42, "Rudy"),
-    (43, 62, "Default"),
-    (63, 82, "Rudy"),
-    (83, 102, "Default"),
-    (103,122, "Rudy"),
-    (123,142, "Default"),
-    (143,162, "Rudy"),
-    (163,182, "Default"),
-    (183,195, "Rudy"),
-    (196,215, "Default"),
-    (216,235, "Rudy"),
-    (236,255, "Default"),
-    (256,275, "Rudy"),
-    (276,295, "Default"),
-    (296,315, "Rudy"),
-    (316,335, "Default"),
-    (336,355, "Rudy"),
-    (356,375, "Default"),
-    (376,395, "Rudy"),
-    (396,425, "Default"),
-    (426,445, "Rudy")
+    (3, 22, DEFAULT_MATRIX),
+    (23, 42, BOOSTED_MATRIX),
+    (43, 62, DEFAULT_MATRIX),
+    (63, 82, BOOSTED_MATRIX),
+    (83, 102, DEFAULT_MATRIX),
+    (103,122, BOOSTED_MATRIX),
+    (123,142, DEFAULT_MATRIX),
+    (143,162, BOOSTED_MATRIX),
+    (163,182, DEFAULT_MATRIX),
+    (183,195, BOOSTED_MATRIX),
+    (196,215, DEFAULT_MATRIX),
+    (216,235, BOOSTED_MATRIX),
+    (236,255, DEFAULT_MATRIX),
+    (256,275, BOOSTED_MATRIX),
+    (276,295, DEFAULT_MATRIX),
+    (296,315, BOOSTED_MATRIX),
+    (316,335, DEFAULT_MATRIX),
+    (336,355, BOOSTED_MATRIX),
+    (356,375, DEFAULT_MATRIX),
+    (376,395, BOOSTED_MATRIX),
+    (396,425, DEFAULT_MATRIX),
+    (426,445, BOOSTED_MATRIX)
 ]
 
 index = max(items[1] for items in CM_RANGES) + 1
 for start, stop, cm in CM_RANGES:
     if stop == index - 1:
         last = cm
-        nex = "Rudy" if last == "Default" else "Default"
+        nex = BOOSTED_MATRIX if last == DEFAULT_MATRIX else DEFAULT_MATRIX
         break
 
 while index <= 556:

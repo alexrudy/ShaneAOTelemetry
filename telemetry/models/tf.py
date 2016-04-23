@@ -26,7 +26,7 @@ class TransferFunction(FileBase, FrequencyDomain):
         return "transferfunction/" + self.kind
     
     created = Column(DateTime)
-    
+    data = DataAttribute("data")
     
     sequence_id = Column(Integer, ForeignKey("sequence.id"))
     sequence = relationship("Sequence", backref=backref('transferfunctions', collection_class=attribute_mapped_collection('kind')))
@@ -62,7 +62,7 @@ class TransferFunctionModel(FileBase, FrequencyDomain):
     @property
     def __h5path__(self):
         """HDF5 path"""
-        return "transferfunction/" + self.kind
+        return "transferfunction/models/" + self.kind
     
     created = Column(DateTime)
     size = Column(Integer)
@@ -79,12 +79,44 @@ class TransferFunctionModel(FileBase, FrequencyDomain):
         return TFModel(gain=self.gain[index], tau=self.tau[index], integrator=self.integrator[index], rate=self.rate)
     
     @classmethod
+    def from_tf(cls, tf):
+        """Make an emty model from a transfer function."""
+        return cls(sequence = tf.sequence, length=tf.length, rate=tf.rate, filename=tf.filename,
+                 created=datetime.datetime.now(), kind=tf.kind)
+    
+    def _update_h5path(self):
+        """Update from the old path scheme."""
+        with h5py.File(self.filename) as f:
+            data_keys = ["tau", "gain", "integrator"]
+            root = "transferfunction/" + self.kind
+            if root in f:
+                base_group = f[root]
+                if "models" in base_group:
+                    del base_group["models"]
+                model_group = f.require_group("transferfunction/models/"+self.kind)
+                if all(key in base_group for key in data_keys):
+                    print("Updating model in HDF5 for {0}".format(self.filename))
+                    for key in data_keys:
+                        if key not in model_group:
+                            f.move("{:s}/{:s}".format(root, key), "transferfunction/models/{:s}/{:s}".format(self.kind, key))
+                        else:
+                            del base_group[key]
+                else:
+                    print("Not all keys in {:s} in {:s}: {:s}".format(root, self.filename, ",".join(base_group.keys())))
+            else:
+                print("Apparently, no {:s} in {:s}".format(root, self.filename))
+            
+        
+    def populate_from_model(self, model):
+        """Set data from model"""
+        self.tau = model.tau.value
+        self.gain = model.gain.value
+        self.integrator = model.integrator.value
+    
+    @classmethod
     def from_model(cls, tf, model):
         """docstring for from_model"""
-        obj = cls(sequence = tf.sequence, length=tf.length, rate=tf.rate, filename=tf.filename,
-                 created=datetime.datetime.now(), kind=tf.kind)
-        obj.tau = model.tau.value
-        obj.gain = model.gain.value
-        obj.integrator = model.integrator.value
+        obj = cls.from_tf(tf)
+        obj.populate_from_model(model)
         obj.write()
         return obj

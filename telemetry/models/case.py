@@ -39,6 +39,7 @@ class Sequence(_DatasetBase):
         # Remove attributes which could be confused.
         del attrs['loop']
         del attrs['gain']
+        del attrs['control_matrix']
         return attrs
         
     def sequence_numbers(self):
@@ -53,4 +54,4 @@ class Sequence(_DatasetBase):
     @property
     def filename(self):
         return os.path.join(self.file_root, 'telemetry', 
-                    'telemetry_s{0:04d}.hdf5'.format(self.id))
+                    'telemetry_s{0:04d}.hdf5'.format(min(self.sequence_numbers())))

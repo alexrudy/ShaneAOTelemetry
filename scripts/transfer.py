@@ -12,6 +12,7 @@ def main():
     parser.add_argument("kind", choices=set("sx sy hcoefficients fmodes phase pseudophase".split()))
     parser.add_argument("--index", type=int, default=None, help="Choose an index.")
     parser.add_argument("--fit", action='store_true', help="Redo the fit.")
+    parser.add_argument("-f", "--force", action='store_true', help="Force recreate figures.")
     
     opt = parser.parse_args()
     import astropy.units as u
@@ -21,6 +22,8 @@ def main():
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     from telemetry import connect, makedirs
+    from sqlalchemy.sql import between
+    
     Session = connect()
     from telemetry.models import Dataset, Periodogram, PeriodogramStack, Sequence, TransferFunction
     session = Session()
@@ -32,7 +35,7 @@ def main():
     fig = plt.figure()
     
     query = session.query(TransferFunction).filter(TransferFunction.kind == opt.kind).join(Sequence).filter(Sequence.id > 24)
-    query = query.filter(Sequence.date == datetime.datetime(2016,03,24,0,0,0))
+    query = query.filter(between(Sequence.date, datetime.datetime(2016, 04, 18, 0, 0, 0), datetime.datetime(2016, 04, 20, 0, 0, 0)))
     for tf in ProgressBar(query.all()):
         
         filename = os.path.join(tf.sequence.figure_path, "transfer", "s{0:04d}".format(tf.sequence.id))
@@ -71,7 +74,7 @@ def main():
             fig.savefig(filename + ".transfer.{:s}.{:03d}.png".format(opt.kind, opt.index))
         else:
             filename = filename + ".transfer.{:s}.png".format(opt.kind)
-            if os.path.exists(filename):
+            if os.path.exists(filename) and not opt.force:
                 continue
                 
             ax.set_title('Transfer Function for s{:04d} gain={:0.2f}'.format(tf.sequence.id, tf.sequence.gain))

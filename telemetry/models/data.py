@@ -31,12 +31,34 @@ def _parse_values_from_header(filename):
         ('TWEETER_', 'tweeter_bleed', float),
         ('ALPHA', 'alpha', float),
         ('MODE', 'mode', str),
+        ('SUBSTATE', 'substate', str),
         ('LOOP', 'loop', str),
         ('CONTROLM', 'control_matrix', str),
+        ('REFCENT_', 'refcents', str),
+        ('TTRATE', 'ttrate', float),
+        ('TTCENT', 'ttcentroid', str),
+        ('WOOFER', 'woofer_enable', lambda s : s == "on"),
+        ('MEMS', 'tweeter_enable', lambda s : s == "on"),
+        ('MEMS_OK', 'tweeter_check', bool),
+        ('CAMERA', 'camera_state', str),
+        ('WRATE', 'woofer_rate', float),
+        ('TTCAMERA', 'ttcamera_state', str),
+        ('TT_RGAIN', 'ttrgain', float),
+        ('FROZEN', 'frozen', bool),
+        ('OFFLOADI', 'offload_enable', bool),
+        ('UPLINK_L', 'uplink_loop', str),
+        ('UPLINK_A', 'uplink_angle', float),
+        ('UPLINK_B', 'uplink_bleed', float),
+        ('UPLINK_G', 'uplink_gain', float),
+        ('UPLINK_E', 'uplink_enabled', bool)
     ]
     
     for key, name, kind in _HEADER_VALUES:
-        args[name] = kind(header[key])
+        try:
+            args[name] = kind(header[key])
+        except ValueError:
+            if header[key] != 'unknown':
+                print("Can't parse {0}={1!r} as {2}".format(key, header[key], kind.__name__))
     
     datestring = header['DATE'] + "T" + header['TIME']
     args['created'] = datetime.datetime.strptime(datestring, '%Y-%m-%dT%H%M%S')
@@ -314,18 +336,42 @@ class _DatasetBase(FileBase):
     """A base class to share columns between dataset and sequence."""
     __abstract__ = True
     
+    mode = Column(String)
+    substate = Column(String)
+    
     rate = Column(Float)
     gain = Column(Float)
+    camera_state = Column(String)
+    
+    alpha = Column(Float)
+    loop = Column(String)
+    control_matrix = Column(String)
+    refcents = Column(String)
+    frozen = Column(Boolean)
+    
+    tweeter_enable = Column(Boolean)
+    tweeter_bleed = Column(Float)
+    tweeter_check = Column(Boolean)
+    
+    woofer_rate = Column(Float)
+    woofer_enable = Column(Boolean)
+    woofer_bleed = Column(Float)
+    offload_enable = Column(Boolean)
     
     centroid = Column(String)
     
-    woofer_bleed = Column(Float)
-    tweeter_bleed = Column(Float)
+    ttrgain = Column(Float)
+    ttrate = Column(Float)
+    ttcentroid = Column(String)
+    ttcamera_state = Column(String)
     
-    alpha = Column(Float)
-    mode = Column(String)
-    loop = Column(String)
-    control_matrix = Column(String)
+    
+    uplink_loop = Column(String)
+    uplink_angle = Column(Float)
+    uplink_bleed = Column(Float)
+    uplink_gain = Column(Float)
+    uplink_enabled = Column(Boolean)
+    
     
     @property
     def file_root(self):
@@ -341,7 +387,8 @@ class _DatasetBase(FileBase):
         """Collect the attributes which we might use to check sequencing."""
         return { 'rate' : self.rate, 'gain' : self.gain, 'centroid' : self.centroid, 
             'woofer_bleed' : self.woofer_bleed, 'tweeter_bleed' : self.tweeter_bleed,
-            'alpha' : self.alpha, 'mode' : self.mode, 'loop' : self.loop, 'date': self.date, 'control_matrix' : self.control_matrix}
+            'alpha' : self.alpha, 'mode' : self.mode, 'loop' : self.loop, 'date': self.date, 
+            'control_matrix' : self.control_matrix, 'refcents' : self.refcents}
     
     def __repr__(self):
         """Sensible representation."""
