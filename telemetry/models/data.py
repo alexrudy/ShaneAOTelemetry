@@ -5,10 +5,17 @@ A single data set.
 
 import datetime
 import os
+import numbers
+import contextlib
+import pytz
 import numpy as np
+import six
 
-from sqlalchemy import Column, Integer, String, DateTime, Float, ForeignKey, Boolean
-from sqlalchemy.orm import relationship, backref
+from sqlalchemy import inspect
+from sqlalchemy import Column, Table
+from sqlalchemy import Integer, String, DateTime, Float, ForeignKey, Boolean, Date, Unicode
+from sqlalchemy.orm import relationship, backref, validates, object_session
+from sqlalchemy.orm.collections import attribute_mapped_collection
 from sqlalchemy.ext.declarative import declared_attr
 
 from astropy.io import fits
@@ -24,9 +31,13 @@ def _parse_values_from_header(filename):
     header = fits.getheader(filename)
     
     _HEADER_VALUES = [
-        ('RATE', 'rate', float),
+        ('NAXIS1', 'n_elements', int),
+        ('SYSTEM', 'system', str),
+        ('HEARTBEA', 'tweeter_heartbeat', bool),
+        ('RTC_STAT', 'recon_enable', bool),
+        ('RATE', 'wfs_rate', float),
         ('GAIN', 'gain', float),
-        ('CENT', 'centroid', str),
+        ('CENT', 'wfs_centroid', str),
         ('WOOFER_B', 'woofer_bleed', float),
         ('TWEETER_', 'tweeter_bleed', float),
         ('ALPHA', 'alpha', float),
@@ -34,16 +45,16 @@ def _parse_values_from_header(filename):
         ('SUBSTATE', 'substate', str),
         ('LOOP', 'loop', str),
         ('CONTROLM', 'control_matrix', str),
-        ('REFCENT_', 'refcents', str),
-        ('TTRATE', 'ttrate', float),
-        ('TTCENT', 'ttcentroid', str),
+        ('REFCENT_', 'reference_centroids', str),
+        ('TTRATE', 'tt_rate', float),
+        ('TTCENT', 'tt_centroid', str),
         ('WOOFER', 'woofer_enable', lambda s : s == "on"),
         ('MEMS', 'tweeter_enable', lambda s : s == "on"),
         ('MEMS_OK', 'tweeter_check', bool),
-        ('CAMERA', 'camera_state', str),
+        ('CAMERA', 'wfs_camera_state', str),
         ('WRATE', 'woofer_rate', float),
-        ('TTCAMERA', 'ttcamera_state', str),
-        ('TT_RGAIN', 'ttrgain', float),
+        ('TTCAMERA', 'tt_camera_state', str),
+        ('TT_RGAIN', 'tt_rgain', float),
         ('FROZEN', 'frozen', bool),
         ('OFFLOADI', 'offload_enable', bool),
         ('UPLINK_L', 'uplink_loop', str),
@@ -62,291 +73,109 @@ def _parse_values_from_header(filename):
     
     datestring = header['DATE'] + "T" + header['TIME']
     args['created'] = datetime.datetime.strptime(datestring, '%Y-%m-%dT%H%M%S')
+    args['date'] = args['created'].date()
     return args
     
 
-class Telemetry(FileBase):
-    """A telemetry-based file object"""
-    __abstract__ = True
+class Telemetry(Base):
+    """An association object with methods for telemetry."""
+    _telemetry_kind_id = Column(Integer, ForeignKey('telemetrykind.id'))
+    kind = relationship("TelemetryKind")
     
-    @declared_attr
-    def dataset_id(self):
-        return Column(Integer, ForeignKey('dataset.id'))
+    _dataset_id = Column(Integer, ForeignKey('dataset.id'))
+    dataset = relationship("Dataset", back_populates="telemetry")
+    
+    @contextlib.contextmanager
+    def open(self):
+        """Open the dataset, as a context manager."""
+        with self.dataset.open() as g:
+            yield g[self.kind.h5path]
+            
+    def read(self):
+        """Read the dataset."""
+        with self.open() as d:
+            return d[...]
+            
+    def remove(self):
+        """Remove telemetry"""
+        with self.dataset.open() as g:
+            g.pop(self.kind.h5path, None)
+        
+    def __repr__(self):
+        """A telemetry data item."""
+        return "<{0}({1}) kind={2} h5path={3}>".format(self.__class__.__name__,
+            self.kind.__class__.__name__, self.kind.kind, 
+            "/".join([self.dataset.h5path,self.kind.h5path]))
 
-class Slopes(Telemetry):
-    """Slope telemetry."""
+class TelemetryKind(Base):
+    """A dataset in an HDF5 file, representing a specific type of telemetry."""
     
-    __h5path__ = "slopes"
-    dataset = relationship("Dataset", backref=backref('slopes', uselist=False), uselist=False)
+    _kind = Column(String)
+    name = Column(String, unique=True)
+    h5path = Column(String)
     
-    sx = DataAttribute("sx")
-    sy = DataAttribute("sy")
+    __mapper_args__ = {
+            'polymorphic_identity': 'base',
+            'polymorphic_on':'_kind',
+        }
+    
+    @property
+    def kind(self):
+        """Telemetry base kind."""
+        return self.name
     
     @classmethod
-    def from_dataset(cls, dataset):
-        """Create slopes item from dataset."""
-        data = dataset.read()
-        nacross = int(dataset.mode.split('x',1)[0])
-        ns = { 16 : 144 }[nacross]
-        sx = data[:,0:ns]
-        sy = data[:,ns:ns*2]
-        filename = os.path.join(os.path.dirname(dataset.filename), 'telemetry', 
-            'telemetry_{0:04d}.hdf5'.format(dataset.sequence_number))
-        
-        makedirs(os.path.dirname(filename))
-        
-        obj = cls(filename = filename, dataset = dataset)
-        obj.sx = sx
-        obj.sy = sy
-        obj.write()
-        return obj
+    def create(cls, session, name, h5path=None):
+        """Create a telemetry kind from a session"""
+        if h5path is None:
+            h5path = name
+        kind = session.query(cls).filter(cls.name == name).one_or_none()
+        if kind is None:
+            session.add(cls(name=name, h5path=h5path))
+            kind = session.query(cls).filter(cls.name == opt.kind).one()
+        return kind
     
-    
-
-class SVCoefficients(Telemetry):
-    
-    __h5path__ = "svd"
-    
-    dataset = relationship("Dataset", backref=backref('svcoefficients', uselist=False), uselist=False)
-    
-    coefficients = DataAttribute("coefficients")
-    
-    @classmethod
-    def from_dataset(cls, dataset):
-        """Create slopes item from dataset."""
-        
-        filename = os.path.join(os.path.dirname(dataset.filename), 'telemetry', 
-            'telemetry_{0:04d}.hdf5'.format(dataset.sequence_number))
-        
-        makedirs(os.path.dirname(filename))
-        
-        obj = cls(filename = filename, dataset = dataset)
-        if obj.check():
-            return obj
-        
-        data = dataset.read()
-        nacross = int(dataset.mode.split('x',1)[0])
-        ns = { 16 : 144 }[nacross]
-        slopes = data[:,0:ns*2]
-        
-        
-        slvec = np.matrix(slopes.T)
-        slvec.shape = (slvec.shape[0], slvec.shape[1], 1)
-        
-        vm = get_cm_projector(dataset.control_matrix)
-        coeffs = vm * slvec
-        data = coeffs.view(np.ndarray).T
-        
-
-        obj.coefficients = data
-        obj.write()
-        return obj
-
-class HCoefficients(Telemetry):
-    
-    __h5path__ = "hmatrix"
-    
-    dataset = relationship("Dataset", backref=backref('hcoefficients', uselist=False), uselist=False)
-    
-    hcoefficients = DataAttribute("hcoefficients")
-    
-    @classmethod
-    def from_dataset(cls, dataset):
-        """Create slopes item from dataset."""
-        obj = cls(filename = dataset.processed_filename, dataset = dataset)
-        if obj.check():
-            return obj
-        
-        data = dataset.read()
-        nacross = int(dataset.mode.split('x',1)[0])
-        
-        ns = { 16 : 144 }[nacross]
-        slopes = data[:,0:ns*2]
-        
-        
-        slvec = np.matrix(slopes.T)
-        slvec.shape = (slvec.shape[0], slvec.shape[1], 1)
-        
-        vm = get_matrix("H_d")
-        coeffs = vm * slvec
-        data = coeffs.view(np.ndarray).T
-        
-        obj.hcoefficients = data
-        obj.write()
-        return obj
+    @validates('h5path')
+    def validate_name(self, key, value):
+        """Validate name."""
+        if self._kind is None or self._kind == "base":
+            mapper = inspect(self).mapper
+            if value in mapper.polymorphic_map:
+                self._kind = value
+            else:
+                self._kind = 'base'
+        return value
     
 
-class Phase(Telemetry):
-    
-    __h5path__ = "phase"
-    
-    dataset = relationship("Dataset", backref=backref('phase', uselist=False), uselist=False)
-    
-    phase = DataAttribute("phase")
-    
-    @classmethod
-    def from_dataset(cls, dataset):
-        """Create slopes item from dataset."""
-        obj = cls(filename = dataset.processed_filename, dataset = dataset)
-        if obj.check():
-            return obj
-        
-        data = dataset.read()
-        if data.shape[-1] == 2402:
-            phase = data[:,-1024:]
-        else:
-            raise ValueError("Telemetry {0} doesn't contain phase points.".format(dataset.sequence_number))
-        
-        obj.phase = phase
-        obj.write()
-        return obj
-    
-class PseudoPhase(Telemetry):
-    
-    __h5path__ = "pseudophase"
-    
-    dataset = relationship("Dataset", backref=backref('pseudophase', uselist=False), uselist=False)
-    
-    pseudophase = DataAttribute("pseudophase")
-    
-    @classmethod
-    def from_dataset(cls, dataset):
-        """Create pseudophase item from dataset."""
-        obj = cls(filename = dataset.processed_filename, dataset = dataset)
-        if obj.check():
-            return obj
-        
-        data = dataset.read()
-        nacross = int(dataset.mode.split('x',1)[0])
-        ns = { 16 : 144 }[nacross]
-        slopes = data[:,0:ns*2]
-        
-        slvec = np.matrix(slopes.T)
-        slvec.shape = (slvec.shape[0], slvec.shape[1], 1)
-        
-        vm = get_matrix("L")
-        coeffs = vm * slvec
-        data = coeffs.view(np.ndarray).T
-        
-        obj.pseudophase = data
-        obj.write()
-        return obj
-        
-class PseudoPhaseNTT(Telemetry):
-    
-    __h5path__ = "pseudophasentt"
-    
-    dataset = relationship("Dataset", backref=backref('pseudophasentt', uselist=False), uselist=False)
-    
-    pseudophasentt = DataAttribute("pseudophasentt")
-    
-    @classmethod
-    def from_dataset(cls, dataset):
-        """Create pseudophase item from dataset."""
-        obj = cls(filename = dataset.processed_filename, dataset = dataset)
-        if obj.check():
-            return obj
-        
-        data = dataset.read()
-        nacross = int(dataset.mode.split('x',1)[0])
-        ns = { 16 : 144 }[nacross]
-        slopes = data[:,0:ns*2]
-        
-        xslopes = slopes[:,0:ns]
-        xslopes -= xslopes.mean(axis=1)[:,None]
-        slopes[:,0:ns] = xslopes
-        yslopes = slopes[:,ns:2*ns]
-        yslopes -= yslopes.mean(axis=1)[:,None]
-        slopes[:,ns:2*ns] = yslopes
-        
-        slvec = np.matrix(slopes.T)
-        slvec.shape = (slvec.shape[0], slvec.shape[1], 1)
-        
-        vm = get_matrix("L")
-        coeffs = vm * slvec
-        data = coeffs.view(np.ndarray).T
-        
-        obj.pseudophasentt = data
-        obj.write()
-        return obj
-        
-        
-class Tweeter(Telemetry):
-    
-    __h5path__ = "mirrors"
-    
-    dataset = relationship("Dataset", backref=backref('tweeter', uselist=False), uselist=False)
-    
-    tweeter = DataAttribute("tweeter")
-    
-    @classmethod
-    def from_dataset(cls, dataset):
-        """Create tweeter item from dataset."""
-        obj = cls(filename = dataset.processed_filename, dataset = dataset)
-        if obj.check():
-            return obj
-        
-        data = dataset.read()
-        nacross = int(dataset.mode.split('x',1)[0])
-        ns = { 16 : 144 }[nacross]
-        
-        start = ns * 2 + (2 if "LGS" in dataset.mode else 0)
-        stop = start + 1024
-        tweeter = data[:,start:stop]
-        tweeter.shape = (-1, 32, 32)
-        obj.tweeter = tweeter
-        obj.write()
-        return obj
-
-class FourierCoefficients(Telemetry):
-    """docstring for FourierCoefficients"""
-    
-    __h5path__ = "fourier"
-    
-    dataset = relationship("Dataset", backref=backref('fmodes', uselist=False), uselist=False)
-    
-    fcoefficients = DataAttribute("fcoefficients")
-    
-    @classmethod
-    def from_dataset(cls, dataset):
-        """Create slopes item from dataset."""
-        obj = cls(filename = dataset.processed_filename, dataset = dataset)
-        if obj.check():
-            return obj
-        
-        data = dataset.read()
-        nacross = int(dataset.mode.split('x',1)[0])
-        ns = { 16 : 144 }[nacross]
-        slopes = data[:,0:ns*2]
-        
-        
-        slvec = np.matrix(slopes.T)
-        slvec.shape = (slvec.shape[0], slvec.shape[1], 1)
-        
-        vm = get_matrix("N")
-        coeffs = vm * slvec
-        data = coeffs.view(np.ndarray).T
-        
-        obj.fcoefficients = data
-        obj.write()
-        return obj
-    
-
-class _DatasetBase(FileBase):
+class Dataset(Base):
     """A base class to share columns between dataset and sequence."""
-    __abstract__ = True
+    
+    telemetry = relationship("Telemetry", back_populates="dataset", cascade="all, delete-orphan",
+        collection_class=attribute_mapped_collection('kind.name'))
+    kinds = relationship("TelemetryKind", secondary='telemetry')
+    
+    filename = Column(Unicode)
+    h5path = Column(String)
+    sequence = Column(Integer)
+    created = Column(DateTime)
+    date = Column(Date)
+    
+    # ShaneAO Operational parameters
+    valid = Column(Boolean, default=True) # A flag to mark a header as unreliable.
     
     mode = Column(String)
     substate = Column(String)
     
-    rate = Column(Float)
+    wfs_rate = Column(Float)
+    wfs_centroid = Column(String)
+    wfs_camera_state = Column(String)
+    
     gain = Column(Float)
-    camera_state = Column(String)
     
     alpha = Column(Float)
     loop = Column(String)
     control_matrix = Column(String)
-    refcents = Column(String)
+    reference_centroids = Column(String)
     frozen = Column(Boolean)
     
     tweeter_enable = Column(Boolean)
@@ -358,13 +187,10 @@ class _DatasetBase(FileBase):
     woofer_bleed = Column(Float)
     offload_enable = Column(Boolean)
     
-    centroid = Column(String)
-    
-    ttrgain = Column(Float)
-    ttrate = Column(Float)
-    ttcentroid = Column(String)
-    ttcamera_state = Column(String)
-    
+    tt_rgain = Column(Float)
+    tt_rate = Column(Float)
+    tt_centroid = Column(String)
+    tt_camera_state = Column(String)
     
     uplink_loop = Column(String)
     uplink_angle = Column(Float)
@@ -372,61 +198,98 @@ class _DatasetBase(FileBase):
     uplink_gain = Column(Float)
     uplink_enabled = Column(Boolean)
     
+    @validates('created')
+    def validate_created(self, key, value):
+        """Validate created."""
+        if isinstance(value, numbers.Number):
+            return datetime.datetime.fromtimestamp(value)
+        return value
     
-    @property
-    def file_root(self):
-        """File path root."""
-        return os.path.dirname(os.path.dirname(self.filename))
+    @validates('date')
+    def validate_date(self, key, value):
+        """Validate the date."""
+        if value is None and self.created is not None:
+            timezone = pytz.timezone('US/Pacific')
+            value = timezone.localize(self.created).astimezone(pytz.UTC).date()
+        elif isinstance(value, numbers.Number):
+            value = datetime.date.fromordinal(value)
+        return value
         
-    @property
-    def figure_path(self):
-        """Figure root path."""
-        return os.path.join(self.file_root, "figures")
+    def validate(self):
+        """Validate the HDF5 path and group."""
+        if not os.path.exists(self.filename):
+            return False
+        with h5py.File(self.filename) as f:
+            return self.h5path in f
+            
+    def set_date(self, value=None):
+        """Set the date from the created date."""
+        if value is None and self.created is not None:
+            timezone = pytz.timezone('US/Pacific')
+            value = timezone.localize(self.created).astimezone(pytz.UTC).date()
+        self.date = value
     
-    def get_sequence_attributes(self):
-        """Collect the attributes which we might use to check sequencing."""
-        return { 'rate' : self.rate, 'gain' : self.gain, 'centroid' : self.centroid, 
-            'woofer_bleed' : self.woofer_bleed, 'tweeter_bleed' : self.tweeter_bleed,
-            'alpha' : self.alpha, 'mode' : self.mode, 'loop' : self.loop, 'date': self.date, 
-            'control_matrix' : self.control_matrix, 'refcents' : self.refcents}
+    @contextlib.contextmanager
+    def open(self):
+        """Open this H5PY file with a group."""
+        with h5py.File(self.filename) as f:
+            g = f[self.h5path]
+            yield g
+            session = object_session(self)
+            if session is not None:
+                self.update_h5py_group(session, g)
+    
+    def update_h5py_group(self, session, g):
+        """Update database to match the HDF5 group"""
+        if g.name != self.h5path:
+            g = g.file[self.h5path]
+        for key in g.keys():
+            if hasattr(g[key], 'shape'):
+                kind = session.query(TelemetryKind).filter(TelemetryKind.h5path == key).one_or_none()
+                if kind is None:
+                    kind = TelemetryKind(name = key, h5path = key)
+                    session.add(kind)
+                self.telemetry[key] = Telemetry(kind=kind, dataset=self)
+        for telemetry in list(self.telemetry.values()):
+            if telemetry.kind.h5path not in g:
+                del self.telemetry[telemetry.kind.name]
+        return
+        
+    def update(self, session=None):
+        """Update this HDF5 object."""
+        with self.open() as g:
+            if session is not None:
+                self.update_h5py_group(session, g)
+    
+    @classmethod
+    def from_h5py_group(cls, session, g):
+        """Create ths object from an HDF5 file."""
+        colnames = set(c.name for c in cls.__table__.columns)
+        attrs = dict((k,g.attrs[k]) for k in g.attrs.keys() if k in colnames)
+        attrs['h5path'] = g.name
+        
+        filename = g.file.filename
+        if not isinstance(filename, six.text_type):
+            filename = filename.decode('utf-8')
+        attrs['filename'] = filename
+        attrs['date'] = None
+        dataset = cls(**attrs)
+        dataset.set_date()
+        dataset.update_h5py_group(session, g)
+        return dataset
     
     def __repr__(self):
         """Sensible representation."""
-        return "<{0} from {date:%Y-%m-%d} mode={mode:s} loop={loop:s} gain={gain:.2f}>".format(self.__class__.__name__, **self.get_sequence_attributes())
-    
-    
-class Dataset(_DatasetBase):
-    """A single dataset."""
-    
-    sequence_number = Column(Integer)
-    sequence_id = Column(Integer, ForeignKey('sequence.id'))
-    sequence = relationship("Sequence", backref='datasets')
-    created = Column(DateTime)
-    
-    # ShaneAO Operational parameters
-    valid = Column(Boolean, default=True) # A flag to mark a header as unreliable.
+        return "<{0} from {date:%Y-%m-%d} mode={mode:s} loop={loop:s} gain={gain:.2f}>".format(self.__class__.__name__, **self.attributes())
     
     @property
-    def processed_filename(self):
-        return os.path.join(self.file_root, 'telemetry', 
-                    'telemetry_{0:04d}.hdf5'.format(self.sequence_number))
+    def path(self):
+        """Path root for this dataset."""
+        return os.path.normpath(os.path.join(os.path.dirname(self.filename), ".."))
+
+
     
-    @property
-    def date(self):
-        """The date this was created."""
-        return self.created.date()
-    
-    @classmethod
-    def from_filename(cls, filename):
-        """Given a file name, figure out what to initialize with."""
-        args = {'filename' : filename}
-        
-        args['sequence_number'] = int(os.path.splitext(filename)[0][-4:])
-        args.update(_parse_values_from_header(filename))
-        return cls(**args)
-    
-    def read(self):
-        """Read the data from the original file."""
-        data = fits.getdata(self.filename)[1:]
-        return data
+
+
+
         

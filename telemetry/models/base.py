@@ -20,6 +20,15 @@ class Base(declarative_base()):
     
     id = Column(Integer, primary_key=True, doc="Primary key identifier for the database.")
     
+    def attributes(self, include=set(), exclude=set()):
+        """Return a dictionary of attributes."""
+        attrs = dict(self.__dict__)
+        include = set(column.name for column in self.__table__.columns).union(include)
+        remove = (set(attrs.keys()).difference(include)).union(exclude)
+        for key in remove:
+            del attrs[key]
+        return attrs
+    
 
 class DataAttribute(object):
     """A descriptor for data attributes"""
