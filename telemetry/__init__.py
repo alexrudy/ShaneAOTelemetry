@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-def connect(url='sqlite:///telemetry.db'):
+def connect(url='sqlite:///telemetry2.db'):
     """Connect and return a session."""
     # Connect!
     from sqlalchemy import create_engine
