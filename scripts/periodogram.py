@@ -1,58 +1,51 @@
 #!/usr/bin/env python
-"""
-Create telemetry objects from datasets.
-"""
-
-import sys, argparse, glob, os, datetime
+# -*- coding: utf-8 -*-
+import argparse
+import datetime
+from telemetry.cli import parser
+from telemetry.models import TelemetryKind, Telemetry, Dataset, Periodogram
+def setup(parser):
+    """Set up the argument parser"""
+    parser.add_argument("kind", type=str, help="Data kind to periodogram.")
 
 def main():
-    """Main function for parsing."""
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument("kind", choices=set("sx sy hcoefficients fmodes phase pseudophase pseudophasentt".split()))
-    opt = parser.parse_args()
+    """Make various generated telemetry components."""
+    opt = parser(setup)
     
-    import numpy as np
-    import matplotlib
-    matplotlib.use("Agg")
-    matplotlib.rcParams['text.usetex'] = False
-    from telemetry import connect, makedirs
-    from sqlalchemy.sql import between
+    session = opt.session
+    name = "{0} periodogram".format(opt.kind)
+    kind = session.query(TelemetryKind).filter(TelemetryKind.name == name).one_or_none()
+    if kind is None:
+        session.add(Periodogram.from_telemetry_kind(opt.kind))
+        session.commit()
+        kind = session.query(TelemetryKind).filter(TelemetryKind.name == name).one()
     
-    Session = connect()
-    from telemetry.models import Dataset, Periodogram, PeriodogramStack, Sequence
-    session = Session()
-    from telemetry.views.periodogram import show_periodogram
-    from astropy.utils.console import ProgressBar
+    print(kind)
+    if not hasattr(kind, 'generate'):
+        opt.error("{0} does not appear to have a .generate() method.".format(type(kind).__name__))
     
-    n_telemetry = 0
+    e_query = session.query(Dataset.id).join(Dataset.kinds).filter(TelemetryKind.name == opt.kind)
+    p_query = session.query(Dataset.id).join(Dataset.kinds).filter(TelemetryKind.name == name)
     
-    start_date = datetime.datetime(2016, 04, 22, 0, 0, 0)
-    end_date = start_date + datetime.timedelta(days=2)
-    
-    query = session.query(PeriodogramStack).filter(PeriodogramStack.kind == opt.kind).join(Sequence)
-    query = query.filter(between(Sequence.date, start_date, end_date))
-    for periodogram in ProgressBar(query.all()):
+    query = opt.query.filter(Dataset.id.in_(e_query))
+    if not opt.force:
+        query = query.filter(~Dataset.id.in_(p_query))
+    for dataset in query.all():
+        if opt.force and kind.name in dataset.telemetry:
+            dataset.telemetry[kind.name].remove()
         
-        filename = os.path.join(periodogram.sequence.figure_path, "periodogram", "s{0:04d}.periodogram.{1:s}.png".format(periodogram.sequence.id, opt.kind))
-        makedirs(os.path.dirname(filename))
-        if os.path.exists(filename):
-            continue
-        try:
-            data = periodogram.read()
-            if np.all(data[np.isfinite(data)] == 0.0):
+        with dataset.open() as g:
+            if kind.h5path in g:
+                dataset.telemetry[kind.name] = Telemetry(kind=kind, dataset=dataset)
+                session.add(dataset.telemetry[kind.name])
                 continue
-        except KeyError as e:
-            continue
-        
-        import matplotlib.pyplot as plt
-        plt.clf()
-        ax = plt.gca()
-        show_periodogram(ax, data, rate=periodogram.rate)
-        
-        ax.set_title('{0:s} Periodogram for s{1:04d} "{2:s}"'.format(opt.kind.capitalize(), periodogram.sequence.id, periodogram.sequence.loop))
-        plt.savefig(filename)
-    print("Created {:d} images.".format(query.count()))
+        kind.generate(dataset, 1024, half_overlap=False)
+        dataset.telemetry[kind.name] = Telemetry(kind=kind, dataset=dataset)
+        session.add(dataset.telemetry[kind.name])
+        session.commit()
+        session.refresh(dataset)
+        print(dataset.telemetry[name])
+    session.commit()
 
 if __name__ == '__main__':
     main()
