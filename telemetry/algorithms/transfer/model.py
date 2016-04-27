@@ -12,18 +12,31 @@ class TransferFunction(FittableModel):
     
     tau = Parameter(min=0.0)
     gain = Parameter(min=0.0, max=1.0)
-    integrator = Parameter(min=1e-5, max=1.0 - 1e-3)
+    ln_c = Parameter(min=-1e2, max=0.0)
     rate = Parameter(fixed=True)
     
+    @property
+    def integrator(self):
+        """Return the integrator value."""
+        return 1.0 - np.exp(self.ln_c.value)
+        
+    @integrator.setter
+    def set_integrator(self, value):
+        """Set the intergrator."""
+        self.ln_c.value = np.log(1.0 - value)
+    
     @classmethod
-    def expected(cls, transfer_function):
+    def expected(cls, dataset):
         """Given an emperical transfer function, compute the expected model."""
-        return cls(tau=1.0/transfer_function.rate, gain=transfer_function.sequence.gain, 
-            integrator=transfer_function.sequence.tweeter_bleed, rate=transfer_function.rate)
+        return cls(tau=(1.0/dataset.wfs_rate) + 900e-6, gain=dataset.gain, 
+            ln_c=np.log(1.0 - dataset.tweeter_bleed), rate=dataset.wfs_rate)
     
     @staticmethod
-    def evaluate(freq, tau, gain, integrator, rate):
+    def evaluate(freq, tau, gain, ln_c, rate):
         """Evaluate a transfer function."""
+        freq = np.asarray(freq)
+        
+        integrator = 1.0 - np.exp(ln_c)
         
         s = 1j * 2.0 * np.pi * freq
         bigT = 1.0 / rate
@@ -42,5 +55,5 @@ class TransferFunction(FittableModel):
         zinv = np.exp(-1.0 * bigT * s)
         cofz = gain / (1.0 - integrator * zinv)
         
-        return np.log(np.abs(1.0 / (1.0 + delay_term * cofz) ** 2.0))
+        return np.abs(1.0 / (1.0 + delay_term * cofz) ** 2.0)
     

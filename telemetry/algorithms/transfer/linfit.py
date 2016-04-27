@@ -5,6 +5,31 @@ from astropy.utils.console import ProgressBar
 import numpy as np
 from .model import TransferFunction
 
+class LogLevMarLSQFitter(fitting.LevMarLSQFitter):
+    """A LevMarLSQ fitter which operates in log space."""
+    
+    def objective_function(self, fps, *args):
+        """
+        Function to minimize.
+
+        Parameters
+        ----------
+        fps : list
+            parameters returned by the fitter
+        args : list
+            [model, [weights], [input coordinates]]
+        """
+
+        model = args[0]
+        weights = args[1]
+        fitting._fitter_to_model_params(model, fps)
+        meas = args[-1]
+        if weights is None:
+            return np.ravel(np.log(model(*args[2 : -1])) - np.log(meas))
+        else:
+            return np.ravel(np.log(weights * (model(*args[2 : -1])) - np.log(meas)))
+    
+
 def log_frequency_weighting(freq):
     """Given an array of frequencies, compute the inverse-log-weighting."""
     # freq[freq != 0.0] = np.nan
@@ -22,26 +47,21 @@ def gauss_freq_weighting(freq):
 
 def expected_model(tf):
     """Generate the expected model."""
-    model = TransferFunction(tau=1.0/tf.rate, gain=tf.sequence.gain, integrator=tf.sequence.tweeter_bleed, rate=tf.rate)
+    model = TransferFunction.expected(tf.dataset)
     return model
 
-def fit_model(tf, index=0):
-    """docstring for fit_model"""
+def fit_model(tf, y, index=0):
+    """Fit a model to a transfer function."""
     model_init = expected_model(tf)
-    fitter = fitting.LevMarLSQFitter()
-    if index is not None:
-        y = tf.data[:,index]
-    else:
-        y = tf.data.mean(axis=1)
     x = tf.frequencies.to(u.Hz).value
-    model = apply_fitter(fitter, model_init, x, y)
+    model = apply_LevMarLSQFitter(model_init, x, y)
     return model
     
     
-def apply_fitter(f, m, x, y):
+def apply_LevMarLSQFitter(m, x, y):
     """Apply the LMLSQ Fitter"""
-    ly = np.log(y)
-    model = f(m, x, ly, weights=gauss_freq_weighting(x), maxiter=1000)
+    f = LogLevMarLSQFitter()
+    model = f(m, x, y, maxiter=1000)
     if f.fit_info['ierr'] not in [1, 2, 3, 4]:
         print("Fit may not have converged. {0}".format(f.fit_info['message']))
     return model
@@ -50,12 +70,12 @@ def apply_fitter(f, m, x, y):
 def fit_all_models(tf):
     """Fit all models."""
     template = np.ones_like(tf.data[0])
-    model_result = TransferFunction(tau=template / tf.rate, gain=template * tf.sequence.gain, 
+    model_result = TransferFunction(tau=template / tf.rate, gain=template * tf.sequence.gain,
         integrator=template * tf.sequence.tweeter_bleed, rate=tf.sequence.rate)
     model_init = expected_model(tf)
     x = tf.frequencies.to(u.Hz).value
     fitter = fitting.LevMarLSQFitter()
-    
+
     for i in range(tf.data.shape[1]):
         y = tf.data[:,i]
         model = apply_fitter(fitter, model_init, x, y)
