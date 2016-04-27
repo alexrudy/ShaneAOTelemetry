@@ -68,7 +68,7 @@ class TelemetrySequence(object):
             
             idiff = set(this_attr.items()) ^ set(other_attr.items())
             kdiff = set(k for k,v in idiff)
-            log.debug("Different items: {0}".format(", ".join("{0}={1}->{2}".format(k,this_attr[k],other_attr[k]) for k in kdiff)))
+            log.debug("Different items: {0}".format(", ".join("{0}={1}->{2}".format(k,this_attr.get(k,'MISSING'),other_attr.get(k,'MISSING')) for k in kdiff)))
             
         return success
         
