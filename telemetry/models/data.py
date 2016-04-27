@@ -15,6 +15,7 @@ from sqlalchemy import inspect
 from sqlalchemy import Column, Table
 from sqlalchemy import Integer, String, DateTime, Float, ForeignKey, Boolean, Date, Unicode
 from sqlalchemy.orm import relationship, backref, validates, object_session
+from sqlalchemy.sql import func
 from sqlalchemy.orm.collections import attribute_mapped_collection
 from sqlalchemy.ext.declarative import declared_attr
 
@@ -89,7 +90,11 @@ class Telemetry(Base):
     def open(self):
         """Open the dataset, as a context manager."""
         with self.dataset.open() as g:
-            yield g[self.kind.h5path]
+            try:
+                yield g[self.kind.h5path]
+            except KeyError as e:
+                print("Error opening {0} from {1} in {2}".format(self.kind.h5path, g.name, repr(self.dataset)))
+                raise
             
     def read(self):
         """Read the dataset."""
@@ -103,21 +108,27 @@ class Telemetry(Base):
         
     def __repr__(self):
         """A telemetry data item."""
-        return "<{0}({1}) kind={2} h5path={3}>".format(self.__class__.__name__,
+        return "<{0}({1}) kind={2} h5path={3} from Dataset {4:d}>".format(self.__class__.__name__,
             self.kind.__class__.__name__, self.kind.kind, 
-            "/".join([self.dataset.h5path,self.kind.h5path]))
+            "/".join([self.dataset.h5path,self.kind.h5path]),
+            self.dataset.sequence)
 
 class TelemetryKind(Base):
     """A dataset in an HDF5 file, representing a specific type of telemetry."""
     
     _kind = Column(String)
-    name = Column(String, unique=True)
-    h5path = Column(String)
+    name = Column(String)
+    h5path = Column(String, unique=True)
     
     __mapper_args__ = {
             'polymorphic_identity': 'base',
             'polymorphic_on':'_kind',
         }
+    
+    def __repr__(self):
+        """Represent this object"""
+        return "<{0} name={1} h5path={2}>".format(self.__class__.__name__, self.name, 
+            self.h5path)
     
     @property
     def kind(self):
@@ -151,7 +162,7 @@ class Dataset(Base):
     """A base class to share columns between dataset and sequence."""
     
     telemetry = relationship("Telemetry", back_populates="dataset", cascade="all, delete-orphan",
-        collection_class=attribute_mapped_collection('kind.name'))
+        collection_class=attribute_mapped_collection('kind.h5path'))
     kinds = relationship("TelemetryKind", secondary='telemetry')
     
     filename = Column(Unicode)
@@ -243,16 +254,24 @@ class Dataset(Base):
         """Update database to match the HDF5 group"""
         if g.name != self.h5path:
             g = g.file[self.h5path]
-        for key in g.keys():
-            if hasattr(g[key], 'shape'):
-                kind = session.query(TelemetryKind).filter(TelemetryKind.h5path == key).one_or_none()
-                if kind is None:
-                    kind = TelemetryKind(name = key, h5path = key)
-                    session.add(kind)
-                self.telemetry[key] = Telemetry(kind=kind, dataset=self)
+            
+        kinds = session.query(TelemetryKind).all()
+        for kind in kinds:
+            if kind.h5path in g and kind.name not in self.telemetry:
+                self.telemetry[kind.h5path] = Telemetry(kind=kind, dataset=self)
+        
+        # for key in g.keys():
+        #     if hasattr(g[key], 'shape'):
+        #         kind = session.query(TelemetryKind).filter(TelemetryKind.h5path == key).one_or_none()
+        #         if kind is None:
+        #             kind = TelemetryKind(name = key, h5path = key)
+        #             session.add(kind)
+        #         if kind.name not in self.telemetry:
+        #             self.telemetry[kind.name] = Telemetry(kind=kind, dataset=self)
+        
         for telemetry in list(self.telemetry.values()):
             if telemetry.kind.h5path not in g:
-                del self.telemetry[telemetry.kind.name]
+                del self.telemetry[telemetry.kind.h5path]
         return
         
     def update(self, session=None):
@@ -280,15 +299,35 @@ class Dataset(Base):
     
     def __repr__(self):
         """Sensible representation."""
-        return "<{0} from {date:%Y-%m-%d} mode={mode:s} loop={loop:s} gain={gain:.2f}>".format(self.__class__.__name__, **self.attributes())
+        return "<{0} {sequence:d} from {date:%Y-%m-%d} mode={mode:s} loop={loop:s} gain={gain:.2f}>".format(self.__class__.__name__, **self.attributes())
     
     @property
     def path(self):
         """Path root for this dataset."""
         return os.path.normpath(os.path.join(os.path.dirname(self.filename), ".."))
-
-
+        
+    def sequence_attributes(self):
+        """The dictionary sequenece attributes."""
+        attrs = self.attributes()
+        keys = set()
+        keys |= set("filename h5path sequence created date valid id".split())
+        keys |= set("loop gain reference_centroids alpha woofer_bleed tweeter_bleed".split())
+        keys |= set("tt_rgain tt_centroid".split())
+        keys |= set("uplink_loop uplink_angle uplink_bleed uplink_gain uplink_enabled".split())
+        for key in keys:
+            del attrs[key]
+        return attrs
     
+    def match(self):
+        """Match to a pair sequence"""
+        cls = self.__class__
+        match_query = object_session(self).query(cls).filter_by(**self.sequence_attributes()).filter(cls.id != self.id).filter(cls.loop != self.loop)
+        matches = match_query.order_by(func.abs(cls.sequence - self.sequence)).all()
+        if not len(matches):
+            return None
+        closest = min(abs(s.sequence - self.sequence) for s in matches)
+        matches = filter(lambda s : abs(s.sequence - self.sequence) <= closest, matches)
+        return matches[0]
 
 
 

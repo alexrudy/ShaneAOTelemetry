@@ -4,4 +4,4 @@
 from .data import *
 from .kinds import *
 from .periodogram import *
-# from .tf import TransferFunction, TransferFunctionModel
+from .tf import *
