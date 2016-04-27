@@ -25,6 +25,8 @@ def plot_periodogram(periodogram, ax):
     filename = os.path.join(periodogram.dataset.path,"figures", "periodogram", "s{0:04d}.periodogram.{1:s}.png".format(periodogram.dataset.sequence, periodogram.kind.kind))
     makedirs(os.path.dirname(filename))
     data = periodogram.read()
+    length = data.shape[-1]
+    data = data.reshape((-1, length))
     show_periodogram(ax, data.T, rate=periodogram.dataset.wfs_rate)
     ax.set_title('{0:s} Periodogram for s{1:04d} "{2:s}"'.format(periodogram.kind.kind.capitalize(), periodogram.dataset.sequence, periodogram.dataset.loop))
     ax.figure.savefig(filename)

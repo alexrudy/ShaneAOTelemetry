@@ -13,6 +13,7 @@ def main():
     new_datasets = 0
     directories = set()
     for path in sys.argv[1:]:
+        path = os.path.splitext(path)[0]
         query_path = os.path.expanduser(os.path.join(path, '*.hdf5'))
         print("Importing files which match '{0}'".format(query_path))
         for filename in glob.iglob(query_path):

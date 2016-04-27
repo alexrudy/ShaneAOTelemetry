@@ -14,26 +14,31 @@ def main():
     opt = parser(setup)
     
     session = opt.session
-    kind = session.query(TelemetryKind).filter(TelemetryKind.name == opt.kind).one_or_none()
+    kind = session.query(TelemetryKind).filter(TelemetryKind.h5path == opt.kind).one_or_none()
     if kind is None:
         session.add(TelemetryKind(name=opt.kind, h5path=opt.kind))
         session.commit()
-        kind = session.query(TelemetryKind).filter(TelemetryKind.name == opt.kind).one()
+        kind = session.query(TelemetryKind).filter(TelemetryKind.h5path == opt.kind).one()
     
     if not hasattr(kind, 'generate'):
         opt.error("{0} does not appear to have a .generate() method.".format(type(kind).__name__))
     
-    e_query = session.query(Dataset.id).join(Dataset.kinds).filter(TelemetryKind.name == opt.kind)
-    if not opt.force:
-        query = opt.query.filter(~Dataset.id.in_(e_query))
-    else:
-        query = opt.query
+    e_query = session.query(Dataset.id).join(Telemetry).join(TelemetryKind).filter(TelemetryKind.h5path == opt.kind)
+    e_query = e_query.filter(Dataset.id.in_(opt.query))
     
+    query = session.query(Dataset).filter(Dataset.id.in_(opt.query))
+    if not opt.force:
+        query = query.filter(~Dataset.id.in_(e_query))
+    
+    print("Generating {0} for {1} datasets.".format(kind.name, query.count()))
+    print("{0:d} datasets already have {1}".format(e_query.count(), kind.name))
     for dataset in query.all():
-        if kind.name in dataset.telemetry and opt.force:
-            dataset.telemetry[kind.name].remove()
+        print(dataset)
+        dataset.update(session)
+        if kind.h5path in dataset.telemetry and opt.force:
+            dataset.telemetry[kind.h5path].remove()
         kind.generate(dataset)
-        dataset.telemetry[kind.name] = Telemetry(kind=kind, dataset=dataset)
+        dataset.telemetry[kind.h5path] = Telemetry(kind=kind, dataset=dataset)
         session.add(dataset)
     session.commit()
 
