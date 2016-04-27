@@ -4,10 +4,12 @@ Data generators.
 """
 import abc
 from .data import TelemetryKind
+from sqlalchemy.orm import validates
 from telemetry.algorithms.coefficients import get_cm_projector, get_matrix
 import numpy as np
 
-__all__ = ['TelemetryGenerator', 'SlopeVectorX', 'SlopeVectorY', 'HCoefficients', 'HEigenvalues', 'PseudoPhase']
+__all__ = ['TelemetryGenerator', 'SlopeVectorX', 'SlopeVectorY', 
+    'HCoefficients', 'HEigenvalues', 'PseudoPhase', 'FourierCoefficients']
 
 class TelemetryGenerator(TelemetryKind):
     
@@ -16,6 +18,33 @@ class TelemetryGenerator(TelemetryKind):
     @abc.abstractmethod
     def generate(self, dataset):
         """Generate data for a dataset."""
+        
+    
+
+class DerivedTelemetry(TelemetryGenerator):
+    """Telemetry from derived telemetry."""
+    
+    H5PATH_ROOT = None
+    POLYMORPHIC_KIND = None
+    
+    @validates('_kind')
+    def validate_kind(self, key, value):
+        """Force the telemetry kind of these objects to be 'periodogram'."""
+        return self.POLYMORPHIC_KIND
+    
+    @validates('h5path')
+    def validate_h5path(self, key, value):
+        """Ensure that HDF5 paths contain periodogram."""
+        if not value.startswith("{}/".format(self.H5PATH_ROOT)):
+            value = "{}/".format(self.H5PATH_ROOT) + value
+        return value
+        
+    @property
+    def kind(self):
+        """Base Kind."""
+        return "/".join(self.h5path.split("/")[1:])
+        
+
 
 class SlopeVector(TelemetryGenerator):
     """Slope vector telemetry, splits slopes if necessary."""

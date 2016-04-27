@@ -7,7 +7,7 @@ from sqlalchemy.orm import validates
 import h5py
 import numpy as np
 
-from .kinds import TelemetryGenerator
+from .kinds import DerivedTelemetry
 from ..algorithms.periodogram import periodogram
 
 import astropy.units as u
@@ -23,30 +23,16 @@ def frequencies(length, rate):
 ATTRIBUTE_KEYS = "half_overlap suppress_static mean_remove skip_length start_length clip_length axis".split()
 
 
-class Periodogram(TelemetryGenerator):
+class Periodogram(DerivedTelemetry):
     """A periodogram object."""
     
     __mapper_args__ = {
             'polymorphic_identity':'periodogram',
         }
     
-    @validates('_kind')
-    def validate_kind(self, key, value):
-        """Force the telemetry kind of these objects to be 'periodogram'."""
-        return 'periodogram'
-        
-    @validates('h5path')
-    def validate_h5path(self, key, value):
-        """Ensure that HDF5 paths contain periodogram."""
-        if not value.startswith("periodogram/"):
-            value = "periodogram/" + value
-        return value
-        
-    @property
-    def kind(self):
-        """Base Kind."""
-        return "/".join(self.h5path.split("/")[1:])
-        
+    H5PATH_ROOT = "periodogram"
+    POLYMORPHIC_KIND = "periodogram"
+    
     @classmethod
     def from_telemetry_kind(cls, kind):
         """From the name of a telemetry kind."""
