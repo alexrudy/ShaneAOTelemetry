@@ -1,13 +1,14 @@
 #!/usr/bin/env python
 from __future__ import print_function
-import sys, argparse, glob, os, datetime
-
+import sys, argparse, glob, os, datetime, re
+from telemetry.fixer import get_index, update
+from astropy.utils.console import ProgressBar
 
 DEFAULT_MATRIX = "controlMatrix_16x.fits"
 BOOSTED_MATRIX = "controlMatrix_16x.incgain.RUDY.fits"
 
 CM_RANGES = [
-    (3, 22, DEFAULT_MATRIX),
+    (0, 22, DEFAULT_MATRIX),
     (23, 42, BOOSTED_MATRIX),
     (43, 62, DEFAULT_MATRIX),
     (63, 82, BOOSTED_MATRIX),
@@ -49,24 +50,19 @@ def find_cm(index):
         if start <= index <= stop:
             return name
     else:
-        raise ValueError("Couldn't figure it out.")
+        raise ValueError("Couldn't figure out index {0}.".format(index))
+        
 
 def main():
     """Show all the datasets."""
-    from telemetry import connect
-    Session = connect()
-    from telemetry.models import Dataset, Sequence
-    from sqlalchemy.sql import between
-    session = Session()
-    start_date = datetime.datetime(2016,03,24,0,0,0)
-    end_date = start_date + datetime.timedelta(days=1)
-    try:
-        for dataset in session.query(Dataset).filter(between(Dataset.created,start_date,end_date)).filter(Dataset.sequence_number >= 3).all():
-            dataset.control_matrix = find_cm(dataset.sequence_number)
-            print("{:d}: {:s} {} {}".format(dataset.sequence_number, dataset, dataset.created, dataset.control_matrix))
-            session.add(dataset)
-    finally:
-        session.commit()
+    root = "/Volumes/LaCie/Telemetry2"
+    path = "ShaneAO/2016-03-23/"
+    script = os.path.basename(__file__)
+    search = glob.glob(os.path.join(root, path, "raw", "*.fits"))
+    for filename in ProgressBar(search):
+        index = get_index(filename)
+        control_matrix = find_cm(index)
+        update(filename, {"CONTROLM":control_matrix}, script)
 
 if __name__ == '__main__':
     main()

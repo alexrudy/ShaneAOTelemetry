@@ -1,11 +1,14 @@
 #!/usr/bin/env python
 from __future__ import print_function
 import sys, argparse, glob, os, datetime
+from telemetry.fixer import get_index, update
+from astropy.utils.console import ProgressBar
+
 
 DEFAULT_MATRIX = "controlMatrix_16x.fits"
 DEFAULT_REFCENTS = "refcents_16x.fits"
 CM_RANGES = [
-    (6, 55, (DEFAULT_MATRIX, DEFAULT_REFCENTS)),
+    (0, 55, (DEFAULT_MATRIX, DEFAULT_REFCENTS)),
     (56, 105, (DEFAULT_MATRIX, DEFAULT_REFCENTS)),
     (106, 155, ("controlMatrix_16x.incgain.250Hz.fits", DEFAULT_REFCENTS)),
     (156, 203, ("controlMatrix_16x.incgain.1000Hz.fits", DEFAULT_REFCENTS)),
@@ -30,30 +33,18 @@ def find_cm(index):
         if start <= index <= stop:
             return name
     else:
-        raise ValueError("Couldn't figure it out.")
+        raise ValueError("Couldn't figure out index {0}".format(index))
 
 def main():
     """Show all the datasets."""
-    from telemetry import connect
-    Session = connect()
-    from telemetry.models import Dataset, Sequence
-    from sqlalchemy.sql import between
-    session = Session()
-    start_date = datetime.datetime(2016,04,18,0,0,0)
-    end_date = start_date + datetime.timedelta(days=2)
-    try:
-        for dataset in session.query(Dataset).filter(between(Dataset.created,start_date,end_date)).filter(Dataset.sequence_number >= 3).all():
-            try:
-                cm, ref = find_cm(dataset.sequence_number)
-            except ValueError as e:
-                pass
-            else:
-                dataset.control_matrix = cm
-                dataset.refcents = ref
-                print("{:d}: {:s} {} {} {}".format(dataset.sequence_number, dataset, dataset.created, dataset.control_matrix, dataset.refcents))
-                session.add(dataset)
-    finally:
-        session.commit()
+    root = "/Volumes/LaCie/Telemetry2"
+    path = "ShaneAO/2016-04-18/"
+    script = os.path.basename(__file__)
+    search = glob.glob(os.path.join(root, path, "raw", "*.fits"))
+    for filename in ProgressBar(search):
+        index = get_index(filename)
+        parameters = dict(zip(["CONTROLM", "REFCENT_"], find_cm(index)))
+        update(filename, parameters, script)
 
 if __name__ == '__main__':
     main()
