@@ -3,7 +3,7 @@
 import argparse
 import datetime
 from telemetry.cli import parser
-from telemetry.models import Dataset
+from telemetry.models import TelemetryKind, Dataset, Telemetry
 
 
 def main():
@@ -12,10 +12,7 @@ def main():
     
     session = opt.session
     query = opt.filter(session.query(Dataset))
-    for dataset in query.all():
-        dataset.update(session)
-        print(dataset.telemetry.keys())
-        session.add(dataset)
+    query.delete(synchronize_session='fetch')
     session.commit()
 
 if __name__ == '__main__':

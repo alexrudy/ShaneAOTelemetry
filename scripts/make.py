@@ -4,6 +4,7 @@ import argparse
 import datetime
 from telemetry.cli import parser
 from telemetry.models import TelemetryKind, Dataset, Telemetry
+from astropy.utils.console import ProgressBar
 
 def setup(parser):
     """Set up the argument parser"""
@@ -32,15 +33,20 @@ def main():
     
     print("Generating {0} for {1} datasets.".format(kind.name, query.count()))
     print("{0:d} datasets already have {1}".format(e_query.count(), kind.name))
-    for dataset in query.all():
-        print(dataset)
-        dataset.update(session)
-        if kind.h5path in dataset.telemetry and opt.force:
-            dataset.telemetry[kind.h5path].remove()
-        kind.generate(dataset)
-        dataset.telemetry[kind.h5path] = Telemetry(kind=kind, dataset=dataset)
-        session.add(dataset)
-    session.commit()
+    try:
+        for dataset in ProgressBar(query.all()):
+            dataset.update(session)
+            if kind.h5path in dataset.telemetry and opt.force:
+                dataset.telemetry[kind.h5path].remove()
+            kind.generate(dataset)
+            dataset.telemetry[kind.h5path] = Telemetry(kind=kind, dataset=dataset)
+            session.add(dataset)
+    except KeyboardInterrupt:
+        print("Committing after keyboard interrupt.")
+        session.commit()
+        raise
+    else:
+        session.commit()
 
 if __name__ == '__main__':
     main()

@@ -84,6 +84,10 @@ class TelemetrySequence(object):
         """Set the filename."""
         self._filename = str(value)
         
+    def __contains__(self, value):
+        """Check if this sequence contains the dataset number."""
+        dlow, dhigh = self._file['telemetry'].attrs['unreal']
+        return (dlow <= int(value) <= dhigh)
         
     def setup(self, n, root=".", mode="w"):
         """Set up the file."""
@@ -119,13 +123,15 @@ class TelemetrySequence(object):
             
         
     
-    def append_from_fits(self, filename):
+    def append_from_fits(self, filename, force=False):
         """Given a FITS filename, append."""
         basename = os.path.basename(filename)
         dnum = None
         m = re.match(r"Data_([\d]{4})\.fits", basename)
         if m:
             dnum = int(m.group(1))
+        if (dnum in self) and (not force):
+            return
         with fits.open(filename, memmap=False) as HDUs:
             self.append(HDUs[0].data.T[...,1:], dnum)
     
@@ -234,7 +240,8 @@ def main():
     cdata = []
     cnum = 0
     filedata = []
-    filenames = itertools.chain.from_iterable(itertools.imap(glob.iglob,opt.path))
+    filenames = [ os.path.splitext(path)[0] + "*.fits" for path in opt.path ]
+    filenames = itertools.chain.from_iterable(itertools.imap(glob.iglob,filenames))
     if opt.limit is not None:
         filenames = itertools.islice(filenames, 0, opt.limit)
     
@@ -262,7 +269,7 @@ def main():
             sequence = TelemetrySequence(attrs)
             sequence.setup(cnum, root, mode="w" if opt.force else "a")
             log.debug("New sequence '{0}'".format(sequence.filename))
-        sequence.append_from_fits(filename)
+        sequence.append_from_fits(filename, force=opt.force)
     
     if opt.profile:
         pr.disable()

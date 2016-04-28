@@ -36,5 +36,11 @@ def parser(setup, **kwargs):
     query = opt.session.query(Dataset.id)
     if opt.date:
         query = add_date_filter(opt.date, opt.days, query)
+        def filter_date(query):
+            """Filter a query."""
+            return add_date_filter(opt.date, opt.days, query)
+        opt.filter = filter_date
+    else:
+        opt.filter = lambda q : q
     opt.query = query
     return opt
