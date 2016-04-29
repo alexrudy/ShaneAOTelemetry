@@ -1,7 +1,20 @@
 #!/usr/bin/env python
 from __future__ import print_function
 import sys, argparse, glob, os
-import datetime
+import datetime, itertools
+import numpy as np
+
+def dataset_table(query, keys=None, view=False):
+    """From a query, construct a dataset table."""
+    from astropy.table import Table
+    if keys is None:
+        keys = ["date", "mode", "substate", "loop", "gain", "wfs_rate", 
+                "tweeter_bleed", "woofer_bleed", "alpha", "wfs_centroid", 
+                "control_matrix", "reference_centroids"]
+    t = Table([d.attributes() for d in query.all()])
+    if view:
+        t[keys].more()
+    return t
 
 def main():
     """Show all the datasets."""
@@ -9,29 +22,42 @@ def main():
     Session = connect()
     from telemetry.models import Dataset, Telemetry, TelemetryKind
     from sqlalchemy.sql import between
-    from astropy.table import Table
     
     parser = argparse.ArgumentParser(description="View an ASCII table of datasets.")
-    parser.add_argument("date", type=lambda s : datetime.datetime.strptime(s, "%Y-%m-%d"))
-    parser.add_argument("kind", nargs="?", help="Show dataset kinds.", default=None)
+    parser.add_argument("-d", "--date", type=lambda s : datetime.datetime.strptime(s, "%Y-%m-%d"))
+    parser.add_argument("-k", "--kind", action='store_true', help="Show dataset kind matrix.")
     opt = parser.parse_args()
     start_date = opt.date#.date()
     end_date = (opt.date + datetime.timedelta(days=2))#.date()
     
     session = Session()
-    query = session.query(Dataset).filter(between(Dataset.created,start_date,end_date))
+    query = session.query(Dataset)
+    if opt.date is not None:
+        query = query.filter(between(Dataset.created,start_date,end_date))
+    
     if not query.count():
         parser.error("Query returned no results for date range {0} to {1}".format(start_date, end_date))
-    if opt.kind is None:
-        datasets = query.all()
-        t = Table([d.attributes() for d in datasets])
-        t[["date", "mode", "loop", "gain", "wfs_rate", "tweeter_bleed", "woofer_bleed", "alpha", "wfs_centroid", "control_matrix", "reference_centroids"]].pprint()
+    
+    if not opt.kind:
+        dataset_table(query, view=True)
     else:
-        query = query.join(Telemetry).join(TelemetryKind).filter(TelemetryKind.h5path == opt.kind)
-        if not query.count():
-            print("No matching datasets found!")
-        for dataset in query.all():
-            print("{0!r}: {1}".format(dataset, ",".join(dataset.telemetry.keys())))
+        ndataset = query.count()
+        ntop = session.query(TelemetryKind).count()
+        keys = [ key for key, in session.query(TelemetryKind.h5path).all() ]
+        matrix = np.zeros((ndataset, ntop), dtype=np.bool)
+        
+        for i,dataset in enumerate(query.all()):
+            matrix[i,:] = [ (key in dataset.telemetry) for key in keys ]
+            
+        keys = np.asarray(keys)[np.any(matrix, axis=0)]
+        
+        
+        for row in itertools.izip_longest(*keys, fillvalue=" "):
+            print(" {} ".format(" ".join(row)))
+        
+        matrix = matrix[:,np.any(matrix, axis=0)]
+        for row in matrix:
+            print(np.array2string(row, max_line_width=120, formatter={'bool': lambda b : "T" if b else "F"}))
     
 if __name__ == '__main__':
     main()

@@ -60,6 +60,9 @@ class TransferFunction(DerivedTelemetry):
         """Periodogram kind."""
         return "periodogram/{0}".format(self.kind)
         
+    def filter(self, query):
+        """Apply necessary dataset filters."""
+        return query.join("pairs")
     
     def generate_from_pair(self, pair):
         """Given a dataset, generate a periodogram."""

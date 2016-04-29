@@ -7,6 +7,7 @@ import datetime
 import os
 import numbers
 import contextlib
+import collections
 import pytz
 import numpy as np
 import six
@@ -25,6 +26,9 @@ import h5py
 from .base import Base, FileBase, DataAttribute
 from .. import makedirs
 from ..algorithms.coefficients import get_cm_projector, get_matrix
+from ..topological import topological_sort
+
+__all__ = ['Telemetry', 'TelemetryKind', 'TelemetryPrerequisite', 'Dataset']
 
 def _parse_values_from_header(filename):
     """Parse argument values from a header file."""
@@ -94,6 +98,7 @@ class Telemetry(Base):
                 yield g[self.kind.h5path]
             except KeyError as e:
                 print("Error opening {0} from {1} in {2}".format(self.kind.h5path, g.name, repr(self.dataset)))
+                print("File: {0}".format(self.dataset.filename))
                 raise
             
     def read(self):
@@ -108,10 +113,11 @@ class Telemetry(Base):
         
     def __repr__(self):
         """A telemetry data item."""
-        return "<{0}({1}) kind={2} h5path={3} from Dataset {4:d}>".format(self.__class__.__name__,
+        return "<{0}({1}) kind={2} h5path={3} from Dataset {4:d} on {5:%Y-%m-%d}>".format(self.__class__.__name__,
             self.kind.__class__.__name__, self.kind.kind, 
             "/".join([self.dataset.h5path,self.kind.h5path]),
-            self.dataset.sequence)
+            self.dataset.sequence, self.dataset.date)
+
 
 class TelemetryKind(Base):
     """A dataset in an HDF5 file, representing a specific type of telemetry."""
@@ -119,6 +125,22 @@ class TelemetryKind(Base):
     _kind = Column(String)
     name = Column(String)
     h5path = Column(String, unique=True)
+    
+    @property
+    def prerequisites(self):
+        """The list of prerequisites"""
+        return [ p.prerequisite for p in self._prerequisite_edges ]
+        
+    @property
+    def rprerequisites(self):
+        """Recursive prerequisites, topologically sorted."""
+        to_check = collections.deque([self])
+        all_prereqs = {}
+        while len(to_check):
+            kind = to_check.popleft()
+            all_prereqs[kind] = kind.prerequisites
+            to_check.extend(kind.prerequisites)
+        return list(topological_sort(all_prereqs.items()))
     
     __mapper_args__ = {
             'polymorphic_identity': 'base',
@@ -138,6 +160,10 @@ class TelemetryKind(Base):
     def kind(self):
         """Telemetry base kind."""
         return self.name
+    
+    def filter(self, query):
+        """Apply necessary dataset filters."""
+        return query
     
     @classmethod
     def create(cls, session, name, h5path=None):
@@ -162,12 +188,20 @@ class TelemetryKind(Base):
         return value
     
 
+class TelemetryPrerequisite(Base):
+    
+    _source_id = Column(Integer, ForeignKey("telemetrykind.id"))
+    source = relationship("TelemetryKind", primaryjoin=_source_id==TelemetryKind.id, backref='_prerequisite_edges')
+    _prerequisite_id = Column(Integer, ForeignKey("telemetrykind.id"))
+    prerequisite = relationship("TelemetryKind", primaryjoin=_prerequisite_id==TelemetryKind.id, backref="_source_edges")
+
+
 class Dataset(Base):
     """A base class to share columns between dataset and sequence."""
     
     telemetry = relationship("Telemetry", back_populates="dataset", cascade="all, delete-orphan",
         collection_class=attribute_mapped_collection('kind.h5path'))
-    kinds = relationship("TelemetryKind", secondary='telemetry')
+    kinds = relationship("TelemetryKind", secondary="telemetry", viewonly=True)
     
     filename = Column(Unicode)
     h5path = Column(String)

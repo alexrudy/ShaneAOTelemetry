@@ -38,7 +38,7 @@ class Periodogram(DerivedTelemetry):
         """From the name of a telemetry kind."""
         return cls(name="{0} periodogram".format(kind), h5path='periodogram/{0}'.format(kind), _kind="periodogram")
         
-    def generate(self, dataset, length, **kwargs):
+    def generate(self, dataset, length=1024, **kwargs):
         """Given a dataset, generate a periodogram."""
         data = np.asarray(dataset.telemetry[self.kind].read())
         pdata = periodogram(data.T, length, **kwargs).T

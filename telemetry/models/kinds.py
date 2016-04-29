@@ -3,7 +3,7 @@
 Data generators.
 """
 import abc
-from .data import TelemetryKind
+from .data import TelemetryKind, Telemetry
 from sqlalchemy.orm import validates
 from telemetry.algorithms.coefficients import get_cm_projector, get_matrix
 import numpy as np
@@ -18,7 +18,21 @@ class TelemetryGenerator(TelemetryKind):
     @abc.abstractmethod
     def generate(self, dataset):
         """Generate data for a dataset."""
+        return Telemetry(kind=self, dataset=dataset)
         
+    def rgenerate(self, session, dataset, force=False):
+        """Recursively generate data as required."""
+        dataset.update(session)
+        for prereq in self.rprerequisites[1:-1]:
+            if prereq.h5path in dataset.telemetry and force:
+                dataset.telemetry[prereq.h5path].remove()
+            prereq.generate(dataset)
+            dataset.telemetry[prereq.h5path] = Telemetry(kind=prereq, dataset=dataset)
+        session.add(dataset)
+        if self.h5path in dataset.telemetry and force:
+            dataset.telemetry[self.h5path].remove()
+        dataset.update(session)
+        self.generate(dataset)
     
 
 class DerivedTelemetry(TelemetryGenerator):
@@ -61,6 +75,7 @@ class SlopeVector(TelemetryGenerator):
         idx = {'sx':0,'sy':1}[self.name]
         with dataset.open() as g:
             g.create_dataset(self.h5path, data=s[idx*ns:(idx+1)*ns,:])
+        return super(SlopeVector, self).generate(dataset)
     
 class SlopeVectorX(SlopeVector):
     """docstring for SlopeVectorX"""
@@ -93,6 +108,7 @@ class MatrixTransform(TelemetryGenerator):
         coeffs = coeffs.view(np.ndarray)
         with dataset.open() as g:
             g.create_dataset(self.h5path, data=coeffs)
+        return super(MatrixTransform, self).generate(dataset)
 
 class HCoefficients(MatrixTransform):
     """Coefficients of the H matrix, generated from slopes."""
@@ -142,6 +158,6 @@ class HEigenvalues(TelemetryGenerator):
         
         with dataset.open() as g:
             g.create_dataset(self.h5path, data=hsvd)
-        
+        return super(HEigenvalues, self).generate(dataset)
     
 
