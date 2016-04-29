@@ -15,6 +15,12 @@ class TransferFunction(FittableModel):
     ln_c = Parameter(min=-1e2, max=0.0)
     rate = Parameter(fixed=True)
     
+    def __init__(self, *args, **kwargs):
+        integrator = kwargs.pop('integrator', None)
+        super(TransferFunction, self).__init__(*args, **kwargs)
+        if integrator is not None:
+            self.integrator = integrator
+    
     @property
     def integrator(self):
         """Return the integrator value."""

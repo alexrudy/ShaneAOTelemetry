@@ -4,6 +4,7 @@ from astropy.modeling import FittableModel, Parameter, fitting
 from astropy.utils.console import ProgressBar
 import numpy as np
 from .model import TransferFunction
+from ...models.periodogram import frequencies
 
 class LogLevMarLSQFitter(fitting.LevMarLSQFitter):
     """A LevMarLSQ fitter which operates in log space."""
@@ -67,19 +68,28 @@ def apply_LevMarLSQFitter(m, x, y):
     return model
     
 
-def fit_all_models(tf):
+def fit_models(tf, progressbar=False):
     """Fit all models."""
-    template = np.ones_like(tf.data[0])
-    model_result = TransferFunction(tau=template / tf.rate, gain=template * tf.sequence.gain,
-        integrator=template * tf.sequence.tweeter_bleed, rate=tf.sequence.rate)
+    data = tf.read()
+    template = np.ones(data.shape[:-1], dtype=np.float)
     model_init = expected_model(tf)
-    x = tf.frequencies.to(u.Hz).value
+    model_result = TransferFunction(tau=template * model_init.tau.value, gain=template * model_init.gain.value,
+        ln_c=template * model_init.ln_c.value, rate=model_init.rate)
+    
+    x = frequencies(data.shape[-1], model_init.rate)
     fitter = fitting.LevMarLSQFitter()
-
-    for i in range(tf.data.shape[1]):
-        y = tf.data[:,i]
-        model = apply_fitter(fitter, model_init, x, y)
-        model_result.tau[i] = model.tau.value
-        model_result.gain[i] = model.gain.value
-        model_result.integrator[i] = model.integrator.value
+    
+    data.shape = (-1, data.shape[-1])
+    
+    if progressbar:
+        iterator = ProgressBar(data.shape[0])
+    else:
+        iterator = range(data.shape[0])
+    
+    for i in iterator:
+        y = data[i,:]
+        model = apply_LevMarLSQFitter(model_init, x, y)
+        model_result.tau.value.flat[i] = model.tau.value
+        model_result.gain.value.flat[i] = model.gain.value
+        model_result.ln_c.value.flat[i] = model.ln_c.value
     return model_result

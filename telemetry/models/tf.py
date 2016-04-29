@@ -14,11 +14,12 @@ import numpy as np
 from .base import Base
 from .kinds import DerivedTelemetry
 from ..algorithms.transfer.model import TransferFunction as TransferFunctionModel
+from ..algorithms.transfer.linfit import fit_models
 
 import astropy.units as u
 import numpy as np
 
-__all__ = ['TransferFunctionPair', 'TransferFunction']
+__all__ = ['TransferFunctionPair', 'TransferFunction', 'TransferFunctionFit']
 
 class TransferFunctionPair(Base):
     """A pair of transfer function items."""
@@ -72,5 +73,40 @@ class TransferFunction(DerivedTelemetry):
             
         
     
-
-
+class TransferFunctionFit(DerivedTelemetry):
+    """A model fit to a transfer function"""
+    
+    __mapper_args__ = {
+            'polymorphic_identity':'transferfunctionmodel',
+        }
+        
+    
+    @classmethod
+    def from_telemetry_kind(cls, kind):
+        """From the name of a telemetry kind."""
+        return cls(name="{0} transferfunction model".format(kind), h5path='transferfunctionmodel/{0}'.format(kind), _kind="transferfunctionmodel")
+    
+    @property
+    def transferfunction(self):
+        """Periodogram kind."""
+        return "transferfunction/{0}".format(self.kind)
+        
+    def generate(self, dataset):
+        """From a dataset, generate a modeled transfer function."""
+        tf = dataset.telemetry[self.transferfunction]
+        model = fit_models(tf)
+        
+        with dataset.open() as g:
+            m = g.require_group(self.h5path)
+            for param_name in ["tau", "ln_c", "gain", "rate"]:
+                if param_name in m:
+                    del m[param_name]
+                param = getattr(model, param_name)
+                d = m.create_dataset(param_name, data=param.value)
+        
+    def read(self, group):
+        """Reading a model should return a model"""
+        kwargs = {}
+        for param_name in ["tau", "ln_c", "gain", "rate"]:
+            kwargs[param_name] = group[param_name][...]
+        return TransferFunctionModel(**kwargs)

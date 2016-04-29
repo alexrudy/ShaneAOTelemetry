@@ -99,7 +99,7 @@ class Telemetry(Base):
     def read(self):
         """Read the dataset."""
         with self.open() as d:
-            return d[...]
+            return self.kind.read(d)
             
     def remove(self):
         """Remove telemetry"""
@@ -129,6 +129,10 @@ class TelemetryKind(Base):
         """Represent this object"""
         return "<{0} name={1} h5path={2}>".format(self.__class__.__name__, self.name, 
             self.h5path)
+    
+    def read(self, dataset):
+        """Read from the HDF5 file."""
+        return dataset[...]
     
     @property
     def kind(self):
