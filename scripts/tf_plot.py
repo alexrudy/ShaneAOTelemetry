@@ -33,13 +33,18 @@ def plot_transfer(transfer, ax):
     length = data.shape[-1]
     freq = frequencies(length, expected_model.rate)
     data_e = expected_model(freq)
-    
     data_p = data.T.reshape((length, -1))
     data_p /= data_p[np.abs(freq) > 100 * u.Hz].mean(axis=0)[None,:]
     data_m = np.exp(np.log(data_p).mean(axis=1))
-    fit_model = apply_LevMarLSQFitter(expected_model, freq, data_m)
-    data_f = fit_model(freq)
     
+    tfmodelname = "transferfunctionmodel/{0}".format(transfer.kind)
+    if tfmodelname in transfer.dataset.telemetry:
+        fit_model = transfer.dataset.telemetry[tfmodelname].read()
+        fit_model = TransferFunctionModel(tau=fit_model.tau.value.mean(), ln_c=fit_model.ln_c.value.mean(), gain=fit_model.gain.value.mean(), rate=fit_model.rate.value.mean())
+    else:
+        fit_model = apply_LevMarLSQFitter(expected_model, freq, data_m)
+    
+    data_f = fit_model(freq)
     alpha = 1.0 / float(data_p.shape[1])
     
     show_periodogram(ax, data_p, rate=transfer.dataset.wfs_rate, color='b', alpha=alpha)
