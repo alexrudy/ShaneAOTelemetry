@@ -38,7 +38,6 @@ def show_model_parameters(ax, model, name="Model", pos=(0.1, 0.1)):
     """Show model parameters."""
     text = r"{:s}\n$\mathrm{{gain}} = {:.4f}$\n$\tau ={:.4f}\mathrm{{s}}$\n$\mathrm{{bleed}} = {:.3f}$".format(name, model.gain.value, model.tau.value, model.integrator)
     t = text.split(r"\n")
-    print("\n".join(t))
     x, y = pos
     ax.text(x, y, "\n".join(t), va='bottom', ha='left', transform=ax.transAxes, bbox=dict(fc='white', ec='black'))
     
