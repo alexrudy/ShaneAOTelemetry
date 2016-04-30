@@ -293,19 +293,19 @@ class Dataset(Base):
         if g.name != self.h5path:
             g = g.file[self.h5path]
             
-        kinds = session.query(TelemetryKind).all()
-        for kind in kinds:
-            if kind.h5path in g and kind.name not in self.telemetry:
-                self.telemetry[kind.h5path] = Telemetry(kind=kind, dataset=self)
+        checked_paths = set()
+        to_check_paths = [kind.h5path for kind in session.query(TelemetryKind).all()]
+        keys = collections.deque(to_check_paths)
+        keys.extend(g.keys())
         
-        # for key in g.keys():
-        #     if hasattr(g[key], 'shape'):
-        #         kind = session.query(TelemetryKind).filter(TelemetryKind.h5path == key).one_or_none()
-        #         if kind is None:
-        #             kind = TelemetryKind(name = key, h5path = key)
-        #             session.add(kind)
-        #         if kind.name not in self.telemetry:
-        #             self.telemetry[kind.name] = Telemetry(kind=kind, dataset=self)
+        while len(keys):
+            key = keys.popleft()
+            kind = session.query(TelemetryKind).filter(TelemetryKind.h5path == key).one_or_none()
+            if kind is not None:
+                if (kind.h5path in g) and (kind.h5path not in self.telemetry):
+                    self.telemetry[kind.h5path] = Telemetry(kind=kind, dataset=self)
+            elif isinstance(g.get(key, None), h5py.Group):
+                keys.extend("/".join([key, subkey]) for subkey in g[key].keys())
         
         for telemetry in list(self.telemetry.values()):
             if telemetry.kind.h5path not in g:
@@ -330,6 +330,11 @@ class Dataset(Base):
             filename = filename.decode('utf-8')
         attrs['filename'] = filename
         attrs['date'] = None
+        
+        for key in attrs:
+            if isinstance(attrs[key], np.bool_):
+                attrs[key] = bool(attrs[key])
+        
         dataset = cls(**attrs)
         dataset.set_date()
         dataset.update_h5py_group(session, g)
