@@ -3,8 +3,12 @@
 """
 Initialize a Telemetry database.
 """
-from telemetry import connect
-from telemetry.models import Dataset, TelemetryKind, Periodogram, TransferFunction, TelemetryPrerequisite, TransferFunctionFit
+from telemetry.application import app
+from telemetry.models import Dataset, TelemetryKind
+from telemetry.models import (Periodogram, TransferFunction, TelemetryPrerequisite, 
+    TransferFunctionFit)
+from telemetry.models import (SlopeVectorX, SlopeVectorY, HCoefficients, 
+    PseudoPhase, FourierCoefficients, HEigenvalues)
 
 def add_kind(session, name, h5path, type_=TelemetryKind):
     """docstring for add_kind"""
@@ -24,9 +28,9 @@ def add_prerequisite(session, source, prerequisite):
 
 def main():
     """Main function."""
-    from telemetry.models import (SlopeVectorX, SlopeVectorY, HCoefficients, 
-        PseudoPhase, FourierCoefficients, HEigenvalues)
-    session = connect()()
+    app.create_all()
+    session = app.session
+    
     he = add_kind(session, name="H Eigenvalues", h5path="heigenvalues", type_=HEigenvalues)
     hc = add_kind(session, name="H Coefficients", h5path="hcoefficients", type_=HCoefficients)
     fc = add_kind(session, name="Fourier Coefficients", h5path="fouriercoeffs", type_=FourierCoefficients)
