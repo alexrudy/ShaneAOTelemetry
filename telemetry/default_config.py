@@ -5,4 +5,4 @@ CELERY_IMPORTS = ['telemetry.tasks', 'telemetry.ext.fourieranalysis.tasks']
 CELERY_RESULT_BACKEND = "rpc://"
 
 TELEMETRY_ENTRYPOINTS = ['fourieranalysis = telemetry.ext.fourieranalysis:setup', 'shaneao = telemetry.ext.shaneao:setup']
-SQLALCHEMY_ECHO = True
+SQLALCHEMY_ECHO = False

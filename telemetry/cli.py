@@ -1,11 +1,16 @@
 # -*- coding: utf-8 -*-
+from __future__ import absolute_import
+
 """
 Basic command line tools.
 """
+
 import click
 import argparse
 import datetime
 import time
+import itertools
+from celery import group
 from telemetry.models import Dataset, TelemetryKind
 from sqlalchemy.sql import between
 from astropy.utils.console import ProgressBar
@@ -25,33 +30,54 @@ def progress(resultset):
 @click.group()
 def cli():
     pass
-
-def add_date_filter(date, days, query):
-    """Add the date fileter."""
-
-    start_date = date
-    end_date = (date + datetime.timedelta(days=days))
-    return query.filter(between(Dataset.created,start_date,end_date))
-
-def parser(setup, **kwargs):
-    """Make an argument parser"""
-    parser = argparse.ArgumentParser(**kwargs)
-    parser.add_argument("-f", "--force", help="Force this operation to complete.", action='store_true')
-    if setup is not None:
-        setup(parser)
     
-    group = parser.add_argument_group("query filtering")
-    group.add_argument("-d", "--date", type=lambda s : datetime.datetime.strptime(s, "%Y-%m-%d"), help="Limit query to a single date.")
-    group.add_argument("--days", type=int, help="Number of days to query", default=1)
-    
-    opt = parser.parse_args()
-    opt.error = parser.error
-    
-    if opt.date:
-        def filter_date(query):
-            """Filter a query."""
-            return add_date_filter(opt.date, opt.days, query)
-        opt.filter = filter_date
-    else:
-        opt.filter = lambda q : q
-    return opt
+class CeleryProgressGroup(object):
+    """A state management for celery progress."""
+    def __init__(self, try_one=False, wait=True, limit=None):
+        super(CeleryProgressGroup, self).__init__()
+        self.try_one = try_one
+        self.wait = wait
+        self.limit = limit
+        
+    @classmethod
+    def callback(cls, name):
+        """Get an option callback."""
+        def callback(ctx, param, value):
+            state = ctx.ensure_object(cls)
+            setattr(state, name, value)
+            return value
+        return callback
+        
+    def __call__(self, iterator):
+        """Call the progress."""
+        if self.limit is not None:
+            iterator = itertools.slice(iterator, 0, self.limit)
+        g = group(iterator)
+        if self.try_one:
+            click.echo("Trying a single task:")
+            r = next(iter(g)).delay().get()
+            click.echo("Success! {0}".format(r))
+        r = g.delay()
+        if self.wait:
+            progress(r)
+        else:
+            click.echo("Tasks started for group {0}".format(r.id))
+        return r
+
+pass_progress_group = click.make_pass_decorator(CeleryProgressGroup, ensure=True)
+
+def celery_progress(func):
+    """A decorator to add celery progress options to a function."""
+    func = click.option("--try-one/--no-try", default=False,
+        callback=CeleryProgressGroup.callback("try_one"), 
+        expose_value=False, help="Try a single value")(func)
+    func = click.option("--limit", type=int, default=None,
+        callback=CeleryProgressGroup.callback("limit"),
+        expose_value=False, help="Limit the number of tasks to process.")(func)
+    func = click.option("--wait/--no-wait", default=True,
+        callback=CeleryProgressGroup.callback("wait"),
+        expose_value=False, help="Wait for tasks to finish.")(func)
+    func = pass_progress_group(func)
+    return func
+
+

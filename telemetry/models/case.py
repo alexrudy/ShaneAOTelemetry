@@ -20,7 +20,7 @@ class Telemetry(Base):
     _telemetry_kind_id = Column(Integer, ForeignKey('telemetrykind.id'))
     kind = relationship("TelemetryKind")
     
-    _dataset_id = Column(Integer, ForeignKey('dataset.id'))
+    _dataset_id = Column(Integer, ForeignKey('dataset.id', ondelete='CASCADE'))
     dataset = relationship("Dataset", backref=backref("telemetry", cascade="all, delete-orphan",
         collection_class=attribute_mapped_collection('kind.h5path')))
     

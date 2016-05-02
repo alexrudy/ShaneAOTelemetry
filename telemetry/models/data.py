@@ -25,6 +25,7 @@ from astropy.io import fits
 import h5py
 
 from .base import Base
+from .case import Telemetry, TelemetryKind
 
 __all__ = ['Instrument', 'DatasetMetadataBase', 'Dataset', 'Tag']
 
@@ -32,6 +33,16 @@ class Instrument(Base):
     """An association object which matches an instrument to a dataset."""
     name = Column(Unicode)
     metadata_type = Column(String(30))
+    
+    @classmethod
+    def require(cls, session, name):
+        """Requrie an instrument."""
+        instrument = session.query(cls).filter(cls.name == name).one_or_none()
+        if not instrument:
+            instrument = cls(name=name, metadata_type=name.lower())
+            session.add(instrument)
+        return instrument
+        
 
 class DatasetMetadataBase(Base):
     """Instrument association base."""
@@ -41,8 +52,7 @@ class DatasetMetadataBase(Base):
     _instrument_id = Column(Integer, ForeignKey("instrument.id"))
     instrument = relationship("Instrument")
     
-    _dataset_id = Column(Integer, ForeignKey("dataset.id"), unique=True)
-    dataset = relationship("Dataset", cascade="all", backref="metadata", uselist=False)
+    _dataset_id = Column(Integer, ForeignKey("dataset.id", ondelete='CASCADE'), unique=True)
     
     __mapper_args__ = {
         'polymorphic_identity' : 'base',
@@ -56,8 +66,13 @@ class DatasetMetadataBase(Base):
         return "{0}({1})".format(self.__class__.__name__, ", ".join("{0}={1}".format(k, v) for k,v in self.attributes().items()))
     
     @classmethod
-    def from_mapping(cls, dataset, mapping):
+    def from_mapping(cls, dataset, mapping, instrument='base'):
         """Create the metadata from a mapping."""
+        
+        # First, use the appropriate instrument class.
+        mapper = inspect(cls).mapper
+        cls = mapper.polymorphic_map[instrument].class_
+        
         colnames = set(c.name for c in cls.__table__.columns)
         attrs = dict((k,mapping[k]) for k in mapping.keys() if k in colnames)
         for key in attrs:
@@ -85,8 +100,8 @@ class DatasetMetadataBase(Base):
 
 
 dataset_tag_association_table = Table('dataset_tag_association', Base.metadata,
-    Column('dataset_id', Integer, ForeignKey('dataset.id')),
-    Column('tag_id', Integer, ForeignKey('tag.id'))
+    Column('dataset_id', Integer, ForeignKey('dataset.id', ondelete="CASCADE")),
+    Column('tag_id', Integer, ForeignKey('tag.id', ondelete="CASCADE"))
 )
 
 class Tag(Base):
@@ -101,6 +116,7 @@ class Dataset(Base):
     _tags = relationship("Tag", secondary=dataset_tag_association_table, back_populates="datasets")
     tags = association_proxy("_tags", "text")
     
+    instrument_data = relationship("DatasetMetadataBase", backref=backref("dataset", uselist=False), cascade="all")
     instrument_id = Column(Integer, ForeignKey("instrument.id"))
     instrument = relationship("Instrument", backref="datasets")
     filename = Column(Unicode)

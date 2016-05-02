@@ -6,10 +6,12 @@ from sqlalchemy.ext.hybrid import hybrid_property
 
 from telemetry.models.data import DatasetMetadataBase
 
+__all__ = ['ShaneAOMetadata']
+
 class ShaneAOMetadata(DatasetMetadataBase):
     """An object containing the ShaneAO Metadata."""
     
-    id = Column(Integer, ForeignKey(DatasetMetadataBase.id))
+    id = Column(Integer, ForeignKey(DatasetMetadataBase.id, ondelete="CASCADE"), primary_key=True)
     
     __mapper_args__ = {
         'polymorphic_identity' : 'shaneao',
