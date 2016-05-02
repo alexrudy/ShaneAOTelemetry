@@ -6,7 +6,7 @@ import numpy as np
 from telemetry.cli import parser
 from telemetry.application import app
 from telemetry.models import TelemetryKind, Telemetry, Dataset
-from telemetry.fourieranalysis.models import TransferFunction, TransferFunctionFit
+from telemetry.ext.fourieranalysis.models import TransferFunction, TransferFunctionFit
 from astropy.utils.console import ProgressBar
 import matplotlib
 matplotlib.use("Agg")

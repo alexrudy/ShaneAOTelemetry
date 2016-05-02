@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-import telemetry.fourieranalysis.models
+import telemetry.ext.fourieranalysis.models
 
 def connect(url='sqlite:///telemetry2.db'):
     """Connect and return a session."""

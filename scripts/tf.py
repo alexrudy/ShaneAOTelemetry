@@ -5,8 +5,8 @@ import datetime
 from telemetry.cli import parser, resultset_progress
 from telemetry.application import app
 from telemetry.models import TelemetryKind, Telemetry, Dataset
-from telemetry.fourieranalysis.models import *
-from telemetry.fourieranalysis.tasks import transferfunction
+from telemetry.ext.fourieranalysis.models import *
+from telemetry.ext.fourieranalysis.tasks import transferfunction
 from celery import group
 
 def setup(parser):

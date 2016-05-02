@@ -6,7 +6,7 @@ import os
 from telemetry.cli import parser, resultset_progress
 from telemetry.application import app
 from telemetry.models import Telemetry, TelemetryKind, Dataset
-from telemetry.fourieranalysis.tasks import periodoram_plot
+from telemetry.ext.fourieranalysis.tasks import periodoram_plot
 from celery import group
 
 import numpy as np

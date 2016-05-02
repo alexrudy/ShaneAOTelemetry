@@ -7,7 +7,7 @@ import datetime
 from telemetry.cli import parser, resultset_progress
 from telemetry.application import app
 from telemetry.models import Dataset
-from telemetry.fourieranalysis.tasks import pair
+from telemetry.ext.fourieranalysis.tasks import pair
 from celery import group
 
 def setup(parser):
