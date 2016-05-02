@@ -4,8 +4,20 @@ Basic command line tools.
 """
 import argparse
 import datetime
+import time
 from telemetry.models import Dataset, TelemetryKind
 from sqlalchemy.sql import between
+from astropy.utils.console import ProgressBar
+
+def resultset_progress(resultset):
+    """A group result progressbar."""
+    with ProgressBar(len(resultset)) as pbar:
+        pbar.update(0)
+        while not resultset.ready():
+            pbar.update(resultset.completed_count())
+            time.sleep(0.1)
+        pbar.update(resultset.completed_count())
+    return
 
 def add_date_filter(date, days, query):
     """Add the date fileter."""
@@ -28,19 +40,11 @@ def parser(setup, **kwargs):
     opt = parser.parse_args()
     opt.error = parser.error
     
-    from telemetry import connect
-    
-    Session = connect()
-    opt.session = Session()
-    
-    query = opt.session.query(Dataset.id)
     if opt.date:
-        query = add_date_filter(opt.date, opt.days, query)
         def filter_date(query):
             """Filter a query."""
             return add_date_filter(opt.date, opt.days, query)
         opt.filter = filter_date
     else:
         opt.filter = lambda q : q
-    opt.query = query
     return opt

@@ -2,34 +2,25 @@
 # -*- coding: utf-8 -*-
 import argparse
 import datetime
-from telemetry.cli import parser
+from telemetry.cli import parser, resultset_progress
 from telemetry.application import app
 from telemetry.celery import is_available
 from telemetry.tasks import refresh
 from telemetry.models import Dataset
-from astropy.utils.console import ProgressBar
 from celery import group
+
 
 
 def main():
     """Make various generated telemetry components."""
-    opt = parser(None)
-    
     with app.app_context():
-        session = app.session
-        query = opt.filter(session.query(Dataset))
-        
+        query = app.session.query(Dataset)
+        print("Refreshing {:d} datasets.".format(query.count()))
+        g = group(refresh.si(dataset.id) for dataset in query.all())
         if not is_available():
-            for dataset in ProgressBar(query.all()):
-                dataset.update()
-                session.add(dataset)
-            session.commit()
+            g().get()
         else:
-            datasets = query.all()
-            tasks = [refresh.si(dataset.id) for dataset in datasets]
-            g = group(*tasks)
-            result = g.delay()
-            result.get()
+            resultset_progress(g.delay())
 
 if __name__ == '__main__':
     main()

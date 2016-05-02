@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+import telemetry.fourieranalysis.models
+
 def connect(url='sqlite:///telemetry2.db'):
     """Connect and return a session."""
     # Connect!
@@ -14,12 +16,3 @@ def connect(url='sqlite:///telemetry2.db'):
     Session = sessionmaker(bind=engine)
     return Session
     
-def makedirs(dirname):
-    """Make directories."""
-    import os
-    try:
-        os.makedirs(dirname)
-    except OSError as e:
-        if not os.path.exists(dirname):
-            raise
-        

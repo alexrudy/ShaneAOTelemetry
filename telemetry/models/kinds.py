@@ -32,7 +32,7 @@ class TelemetryGenerator(TelemetryKind):
         if self.h5path in dataset.telemetry and force:
             dataset.telemetry[self.h5path].remove()
         dataset.update(session)
-        self.generate(dataset)
+        return self.generate(dataset)
     
 
 class DerivedTelemetry(TelemetryGenerator):

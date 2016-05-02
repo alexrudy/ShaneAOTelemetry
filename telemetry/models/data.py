@@ -23,8 +23,7 @@ from sqlalchemy.ext.declarative import declared_attr
 from astropy.io import fits
 import h5py
 
-from .base import Base, FileBase, DataAttribute
-from .. import makedirs
+from .base import Base
 from ..algorithms.coefficients import get_cm_projector, get_matrix
 from ..topological import topological_sort
 

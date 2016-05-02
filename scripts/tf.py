@@ -2,64 +2,57 @@
 # -*- coding: utf-8 -*-
 import argparse
 import datetime
-from telemetry.cli import parser
-from telemetry.models import TelemetryKind, Telemetry, Dataset, TransferFunction
+from telemetry.cli import parser, resultset_progress
+from telemetry.application import app
+from telemetry.models import TelemetryKind, Telemetry, Dataset
+from telemetry.fourieranalysis.models import *
+from telemetry.fourieranalysis.tasks import transferfunction
+from celery import group
+
 def setup(parser):
     """Set up the argument parser"""
     parser.add_argument("kind", type=str, help="Data kind to periodogram.")
+
+def get_kind(session, h5path):
+    """Get a telemetry kind from an h5path."""
+    kind = session.query(TelemetryKind).filter(TelemetryKind.h5path == h5path).one_or_none()
+    if kind is None:
+        session.add(TelemetryKind(name=h5path, h5path=h5path))
+        session.commit()
+        kind = session.query(TelemetryKind).filter(TelemetryKind.h5path == h5path).one()
+    return kind
 
 def main():
     """Make transfer functions components."""
     opt = parser(setup)
     
-    session = opt.session
-    name = "transferfunction/{0}".format(opt.kind)
-    kind = session.query(TelemetryKind).filter(TelemetryKind.h5path == name).one_or_none()
-    if kind is None:
-        session.add(TransferFunction.from_telemetry_kind(opt.kind))
-        session.commit()
-        kind = session.query(TelemetryKind).filter(TelemetryKind.h5path == name).one()
+    with app.app_context():
+        name = "transferfunction/{0}".format(opt.kind)
+        kind = get_kind(app.session, name)
     
-    print(kind)
-    if not hasattr(kind, 'generate'):
-        opt.error("{0} does not appear to have a .generate() method.".format(type(kind).__name__))
+        print(kind)
+        if not hasattr(kind, 'generate'):
+            opt.error("{0} does not appear to have a .generate() method.".format(type(kind).__name__))
     
-    e_query = session.query(Dataset.id).join(Telemetry).join(TelemetryKind).filter(TelemetryKind.h5path == opt.kind)
-    t_query = session.query(Dataset.id).join(Telemetry).join(TelemetryKind).filter(TelemetryKind.h5path == name)
-    query = session.query(Dataset).filter(Dataset.id.in_(e_query)).filter(Dataset.loop == "closed")
+        e_query = app.session.query(Dataset.id).join(Telemetry).join(TelemetryKind).filter(TelemetryKind.h5path == opt.kind)
+        t_query = app.session.query(Dataset.id).join(Telemetry).join(TelemetryKind).filter(TelemetryKind.h5path == name)
+        query = app.session.query(Dataset).filter(Dataset.id.in_(e_query)).join(Dataset.pairs)
     
-    if opt.date is not None:
-        e_query = e_query.filter(Dataset.id.in_(opt.query))
-        t_query = t_query.filter(Dataset.id.in_(opt.query))
-        query = query.filter(Dataset.id.in_(opt.query))
+        if opt.date is not None:
+            e_query = opt.filter(e_query)
+            t_query = opt.filter(t_query)
+            query = opt.filter(query)
     
-    print("{0:d} potential target datasets.".format(query.count()))
+        print("{0:d} potential target datasets.".format(query.count()))
     
-    if not opt.force:
-        query = query.filter(Dataset.id.notin_(t_query))
+        if not opt.force:
+            query = query.filter(Dataset.id.notin_(t_query))
     
-    print("Generating {0} for {1} datasets.".format(kind.name, query.count()))
-    print("{0:d} datasets already have {1}".format(t_query.count(), kind.name))
-    
-    for dataset in query.all():
-        if opt.force and kind.h5path in dataset.telemetry:
-            dataset.telemetry[kind.h5path].remove()
+        print("Generating {0} for {1} datasets.".format(kind.name, query.count()))
+        print("{0:d} datasets already have {1}".format(t_query.count(), kind.name))
         
-        if not len(dataset.pairs):
-            continue
-        
-        with dataset.open() as g:
-            if kind.h5path in g:
-                tel = dataset.telemetry[kind.name] = Telemetry(kind=kind, dataset=dataset)
-                session.add(tel)
-                continue
-        kind.generate(dataset)
-        dataset.telemetry[kind.name] = Telemetry(kind=kind, dataset=dataset)
-        session.add(dataset.telemetry[kind.name])
-        session.commit()
-        session.refresh(dataset)
-        print(dataset.telemetry[name])
-    session.commit()
+        g = group(transferfunction.si(dataset.id, opt.kind) for dataset in query.all())
+        resultset_progress(g.delay())
 
 if __name__ == '__main__':
     main()
