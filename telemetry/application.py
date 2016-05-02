@@ -60,6 +60,15 @@ def prepare_sqlalchemy(app):
     
     app.metadata = Base.metadata
     return app.metadata
+    
+
+def prepare_entrypoints(app):
+    """Prepare entrypoints."""
+    import pkg_resources
+    for entry_point in app.config['TELEMETRY_ENTRYPOINTS']:
+        ep = pkg_resources.EntryPoint.parse(entry_point, dist=None)
+        setup_func = ep.load(require=False)
+        setup_func(app)
 
 class TelemetryFlask(Flask):
     """A custom flask application."""
@@ -105,3 +114,4 @@ app = TelemetryFlask("telemetry", instance_path=get_instance_path(), instance_re
 app.config.from_object("telemetry.default_config")
 app.config.from_pyfile("telemetry.cfg", silent=True)
 metadata = prepare_sqlalchemy(app)
+prepare_entrypoints(app)

@@ -4,7 +4,7 @@ from astropy.modeling import FittableModel, Parameter, fitting
 from astropy.utils.console import ProgressBar
 import numpy as np
 from .model import TransferFunction
-from ...models.periodogram import frequencies
+from ..utils import frequencies
 
 class LogLevMarLSQFitter(fitting.LevMarLSQFitter):
     """A LevMarLSQ fitter which operates in log space."""

@@ -2,6 +2,7 @@
 """
 Basic command line tools.
 """
+import click
 import argparse
 import datetime
 import time
@@ -9,7 +10,9 @@ from telemetry.models import Dataset, TelemetryKind
 from sqlalchemy.sql import between
 from astropy.utils.console import ProgressBar
 
-def resultset_progress(resultset):
+__all__ = ['progress', 'cli']
+
+def progress(resultset):
     """A group result progressbar."""
     with ProgressBar(len(resultset)) as pbar:
         pbar.update(0)
@@ -18,6 +21,10 @@ def resultset_progress(resultset):
             time.sleep(0.1)
         pbar.update(resultset.completed_count())
     return
+    
+@click.group()
+def cli():
+    pass
 
 def add_date_filter(date, days, query):
     """Add the date fileter."""

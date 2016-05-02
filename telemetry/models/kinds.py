@@ -3,7 +3,7 @@
 Data generators.
 """
 import abc
-from .data import TelemetryKind, Telemetry
+from .case import TelemetryKind, Telemetry
 from sqlalchemy.orm import validates
 from telemetry.algorithms.coefficients import get_cm_projector, get_matrix
 import numpy as np

@@ -13,6 +13,7 @@ import numpy as np
 
 from telemetry.models.base import Base
 from telemetry.models.kinds import DerivedTelemetry
+from telemetry.models.case import TelemetryKind
 from .modeling.model import TransferFunction as TransferFunctionModel
 from .modeling.linfit import fit_models
 from .periodogram import periodogram
@@ -35,9 +36,13 @@ class Periodogram(DerivedTelemetry):
     POLYMORPHIC_KIND = "periodogram"
     
     @classmethod
-    def from_telemetry_kind(cls, kind):
+    def from_telemetry_kind(cls, kind, session=None):
         """From the name of a telemetry kind."""
-        return cls(name="{0} periodogram".format(kind), h5path='periodogram/{0}'.format(kind), _kind="periodogram")
+        name = "{0} periodogram".format(kind)
+        h5path = 'periodogram/{0}'.format(kind)
+        if session:
+            return cls.require(session, name=name, h5path=h5path)
+        return cls(name=name, h5path=h5path, _kind="periodogram")
         
     def generate(self, dataset, length=1024, **kwargs):
         """Given a dataset, generate a periodogram."""
@@ -77,10 +82,14 @@ class TransferFunction(DerivedTelemetry):
         
     
     @classmethod
-    def from_telemetry_kind(cls, kind):
+    def from_telemetry_kind(cls, kind, session=None):
         """From the name of a telemetry kind."""
-        return cls(name="{0} transferfunction".format(kind), h5path='transferfunction/{0}'.format(kind), _kind="transferfunction")
-        
+        name = "{0} Transfer Function".format(kind)
+        h5path = 'transferfunction/{0}'.format(kind)
+        if session:
+            return cls.require(session, name=name, h5path=h5path)
+        return cls(name=name, h5path=h5path, _kind="transferfunction")
+    
     def generate(self, dataset):
         """From a dataset, generate a pair."""
         if not len(dataset.pairs):
@@ -118,11 +127,13 @@ class TransferFunctionFit(DerivedTelemetry):
         
     
     @classmethod
-    def from_telemetry_kind(cls, kind):
+    def from_telemetry_kind(cls, kind, session=None):
         """From the name of a telemetry kind."""
-        return cls(name="{0} transferfunction model".format(kind), 
-            h5path='transferfunctionmodel/{0}'.format(kind), 
-            _kind="transferfunctionmodel")
+        name = "{0} transferfunction model".format(kind)
+        h5path = 'transferfunctionmodel/{0}'.format(kind)
+        if session:
+            return cls.require(session, name=name, h5path=h5path)
+        return cls(name=name, h5path=h5path, _kind="transferfunctionmodel")
     
     @property
     def transferfunction(self):
@@ -149,3 +160,22 @@ class TransferFunctionFit(DerivedTelemetry):
         for param_name in ["tau", "ln_c", "gain", "rate"]:
             kwargs[param_name] = group[param_name][...]
         return TransferFunctionModel(**kwargs)
+
+
+def initdb(session):
+    """Initialize the constant elements of the database."""
+    query_kinds = session.query(TelemetryKind).filter(
+        TelemetryKind.h5path.notlike("transferfunction%"), 
+        TelemetryKind.h5path.notlike("periodogram%"))
+    for tk in query_kinds.all():
+        ptk = Periodogram.from_telemetry_kind(tk.h5path, session=session)
+        ptk.add_prerequisite(session, tk)
+        
+        tfk = TransferFunction.from_telemetry_kind(tk.h5path, session=session)
+        tfk.add_prerequisite(session, ptk)
+        
+        tff = TransferFunctionFit.from_telemetry_kind(tk.h5path, session=session)
+        tff.add_prerequisite(session, tfk)
+    
+    
+    
