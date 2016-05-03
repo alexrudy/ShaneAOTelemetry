@@ -4,7 +4,7 @@
 import astropy.units as u
 import numpy as np
 
-from ..models.periodogram import frequencies
+from ..ext.fourieranalysis.utils import frequencies
 
 def show_transferfunction(ax, tf, rate=1.0, **kwargs):
     """Similar to show_periodogram but with slightly different defaults.

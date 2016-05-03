@@ -11,7 +11,7 @@ import click
 from celery import group
 
 from .cli import cli, celery_progress
-from .tasks import read as read_task, refresh as refresh_task
+from .tasks import read as read_task, refresh as refresh_task, rgenerate
 from .application import app
 from .models import Base, Dataset, TelemetryKind, TelemetryPrerequisite
 from .models import (SlopeVectorX, SlopeVectorY, HCoefficients, 
@@ -96,7 +96,7 @@ def read(progress, paths, force):
 
 @cli.command()
 @celery_progress
-def refresh():
+def refresh(progress):
     """Refresh datasets."""
     with app.app_context():
         query = app.session.query(Dataset).order_by(Dataset.created)
@@ -112,3 +112,36 @@ def delete():
             query.delete(synchronize_session='fetch')
             app.session.commit()
         
+    
+
+@cli.command()
+@celery_progress
+@click.argument("component", type=str)
+@click.option("--recursive/--no-recursive", help="Recursively generate data.", default=False)
+@click.option("--force/--no-force", help="Force regenerate.", default=False)
+def make(progress, component, recursive, force):
+    """Make a given component."""
+    with app.app_context():
+        kind = TelemetryKind.require(app.session, component)
+        if not hasattr(kind, 'generate'):
+            raise click.BadParameter("{0} does not appear to have a .generate() method.".format(kind))
+        prerequisties = kind.rprerequisites
+        
+        done = app.session.query(Dataset.id).join(Dataset.kinds).filter(TelemetryKind.h5path == prerequisties[-1].h5path)
+        if recursive:
+            query = app.session.query(Dataset).join(Dataset.kinds).filter(TelemetryKind.h5path == prerequisties[0].h5path)
+            for p in prerequisties:
+                query = p.filter(query)
+        else:
+            query = app.session.query(Dataset).join(Dataset.kinds).filter(TelemetryKind.h5path == prerequisties[-2].h5path)
+            query = kind.filter(query)
+        
+        if not force:
+            query = query.filter(Dataset.id.notin_(done))
+        
+        click.echo("Generating {0} for {1} datasets.".format(kind.name, query.count()))
+        click.echo("{0:d} datasets already have {1}".format(done.count(), kind.name))
+        click.echo("Prerequisites:")
+        for i, prereq in enumerate(kind.rprerequisites):
+            click.echo("{:d}) {:s}".format(i, prereq.h5path))
+        progress(group(rgenerate(dataset, kind) for dataset in query.all()))

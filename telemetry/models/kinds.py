@@ -70,7 +70,7 @@ class SlopeVector(TelemetryGenerator):
     def generate(self, dataset):
         """Generate data for a dataset."""
         s = dataset.telemetry['slopes'].read()
-        n_across = int(dataset.mode.split('x',1)[0])
+        n_across = int(dataset.instrument_data.mode.split('x',1)[0])
         ns = self._NSLOPES[n_across]
         idx = {'sx':0,'sy':1}[self.name]
         with dataset.open() as g:
@@ -152,7 +152,7 @@ class HEigenvalues(TelemetryGenerator):
         s = np.matrix(s)
         s.shape = (s.shape[0], s.shape[1], 1)
         
-        vm = get_cm_projector(dataset.control_matrix)
+        vm = get_cm_projector(dataset.instrument_data.control_matrix)
         coeffs = vm * s
         hsvd = coeffs.view(np.ndarray).T
         

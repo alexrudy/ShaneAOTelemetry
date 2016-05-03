@@ -2,6 +2,7 @@
 
 import os
 import contextlib
+import collections
 
 from sqlalchemy import inspect
 from sqlalchemy import Column, Integer, String, DateTime, Float, ForeignKey
@@ -94,7 +95,7 @@ class TelemetryKind(Base):
     @property
     def kind(self):
         """Telemetry base kind."""
-        return self.name
+        return self.h5path
     
     def filter(self, query):
         """Apply necessary dataset filters."""
@@ -112,7 +113,7 @@ class TelemetryKind(Base):
         """Create a telemetry kind from a session"""
         if h5path is None:
             h5path = name
-        kind = session.query(cls).filter(cls.name == name).one_or_none()
+        kind = session.query(cls).filter(cls.h5path == h5path).one_or_none()
         if kind is None:
             kind = cls(name=name, h5path=h5path)
             session.add(kind)

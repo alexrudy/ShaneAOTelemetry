@@ -106,7 +106,7 @@ class TelemetryFlask(Flask):
     
 def get_instance_path():
     """Get the instance path."""
-    hostname = socket.gethostname()
+    hostname = os.environ.get("TELEMETRYHOST", socket.gethostname())
     packagedir = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
     return os.path.abspath(os.path.join(packagedir, hostname))
     

@@ -10,19 +10,22 @@ from .views import save_transfer_plot, save_periodogram_plot
 def pair(self, dataset_id):
     """Pair a dataset."""
     dataset = self.session.query(Dataset).filter_by(id=dataset_id).one()
-    other = dataset.match()
+    if dataset.instrument_data.loop != "closed":
+        return "Loop wasn't closed"
+    other = dataset.instrument_data.match()
     if other is None:
         print("Couldn't match {0}".format(dataset))
-        return
+        return "Can't match."
     pair = self.session.query(TransferFunctionPair).filter(
         TransferFunctionPair.loop_open_id == other.id).filter(
-        TransferFunctionPair.loop_closed_id == other.id).one_or_none()
+        TransferFunctionPair.loop_closed_id == dataset.id).one_or_none()
     if pair is None:
         print("Matched {0}".format(dataset))
         print("To {0}".format(other))
         pair = TransferFunctionPair(loop_open=other, loop_closed=dataset)
         self.session.add(pair)
     self.session.commit()
+    return "Success, matched to {0}".format(other)
     
 
 @app.celery.task(bind=True)

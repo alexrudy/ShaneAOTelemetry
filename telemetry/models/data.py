@@ -96,7 +96,7 @@ class DatasetMetadataBase(Base):
             return None
         closest = min(abs(s.sequence - self.sequence) for s in matches)
         matches = filter(lambda s : abs(s.sequence - self.sequence) <= closest, matches)
-        return matches[0]
+        return matches[0].dataset
 
 
 dataset_tag_association_table = Table('dataset_tag_association', Base.metadata,
@@ -116,7 +116,7 @@ class Dataset(Base):
     _tags = relationship("Tag", secondary=dataset_tag_association_table, back_populates="datasets")
     tags = association_proxy("_tags", "text")
     
-    instrument_data = relationship("DatasetMetadataBase", backref=backref("dataset", uselist=False), cascade="all")
+    instrument_data = relationship("DatasetMetadataBase", backref=backref("dataset", uselist=False), cascade="all", uselist=False)
     instrument_id = Column(Integer, ForeignKey("instrument.id"))
     instrument = relationship("Instrument", backref="datasets")
     filename = Column(Unicode)

@@ -8,5 +8,8 @@ def setup(app):
     # Connect the models.
     from . import models
     
+    # Initialize command line tool.
+    from . import cli
+    
     # Connect the DB initializer.
     db.INITIALIZERS.add(models.initdb)
