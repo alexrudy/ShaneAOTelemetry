@@ -91,11 +91,11 @@ class DatasetMetadataBase(Base):
         session = session or object_session(self)
         match_query = session.query(cls).filter_by(**self.sequence_attributes())
         match_query = match_query.filter(cls.id != self.id, cls.loop != self.loop)
-        matches = match_query.order_by(func.abs(cls.sequence - self.sequence)).all()
+        matches = match_query.join(Dataset).order_by(func.abs(Dataset.sequence - self.dataset.sequence)).all()
         if not len(matches):
             return None
-        closest = min(abs(s.sequence - self.sequence) for s in matches)
-        matches = filter(lambda s : abs(s.sequence - self.sequence) <= closest, matches)
+        closest = min(abs(s.dataset.sequence - self.dataset.sequence) for s in matches)
+        matches = filter(lambda s : abs(s.dataset.sequence - self.dataset.sequence) <= closest, matches)
         return matches[0].dataset
 
 
