@@ -32,7 +32,7 @@ def save_periodogram_plot(periodogram):
     data = periodogram.read()
     length = data.shape[-1]
     data = data.reshape((-1, length))
-    show_periodogram(ax, data.T, rate=periodogram.dataset.wfs_rate)
+    show_periodogram(ax, data.T, rate=periodogram.dataset.instrument_data.wfs_rate)
     ax.set_title('{0:s} Periodogram for s{1:04d} ({2:s})'.format(periodogram.kind.kind.capitalize(), periodogram.dataset.sequence, periodogram.dataset.loop))
     fig.savefig(filename)
     plt.close(fig)
@@ -46,7 +46,7 @@ def plot_mean_transfer_model(transfer_model, ax):
         rate=model.rate.value.mean())
     freq = frequencies(length, model.rate.mean())
     data_f = fit_model(freq)
-    show_periodogram(ax, data_f, rate=transfer.dataset.wfs_rate, color='g', label='Fit Model')
+    show_periodogram(ax, data_f, rate=transfer.dataset.instrument_data.wfs_rate, color='g', label='Fit Model')
     show_model_parameters(ax, fit_model, pos=(0.8, 0.1))
 
 def plot_fit_transfer_model(model, freq, data, ax):
@@ -60,7 +60,7 @@ def plot_transfer_object(transfer, ax):
     """Plot a periodogram."""
     data = transfer.read()
     length = data.shape[-1]
-    freq = frequencies(length, transfer.dataset.wfs_rate)
+    freq = frequencies(length, transfer.dataset.instrument_data.wfs_rate)
     weights = np.abs(frequencies(length, 1.0).value)
     data_p = data.T.reshape((length, -1))
     data_p /= data_p[weights >= (2.0/3.0) * np.max(weights)].mean(axis=0)[None,:]
@@ -70,9 +70,9 @@ def plot_transfer_object(transfer, ax):
     expected_model = TransferFunctionModel.expected(transfer.dataset)
     data_e = expected_model(freq)
     
-    show_periodogram(ax, data_p, rate=transfer.dataset.wfs_rate, color='b', alpha=alpha)
-    show_periodogram(ax, data_m, rate=transfer.dataset.wfs_rate, color='b', label="Data")
-    show_periodogram(ax, data_e, rate=transfer.dataset.wfs_rate, color='r', label='Expected Model')
+    show_periodogram(ax, data_p, rate=transfer.dataset.instrument_data.wfs_rate, color='b', alpha=alpha)
+    show_periodogram(ax, data_m, rate=transfer.dataset.instrument_data.wfs_rate, color='b', label="Data")
+    show_periodogram(ax, data_e, rate=transfer.dataset.instrument_data.wfs_rate, color='r', label='Expected Model')
     show_model_parameters(ax, expected_model, pos=(0.6, 0.1), name="Expected")
     
     if "transferfunctionmodel/{0}".format(transfer.kind) in transfer.dataset.telemetry:
@@ -81,6 +81,6 @@ def plot_transfer_object(transfer, ax):
     else:
         plot_fit_transfer_model(expected_model, freq, data_m, ax)
     
-    ax.set_title('{0:s} ETF for s{1:04d} "{2:s}"'.format(transfer.kind.kind.capitalize(), transfer.dataset.sequence, transfer.dataset.loop))
+    ax.set_title('{0:s} ETF for s{1:04d} "{2:s}"'.format(transfer.kind.kind.capitalize(), transfer.dataset.sequence, transfer.dataset.instrument_data.loop))
     ax.legend(loc='best')
-    ax.text(0.0, 1.01, r"${:.0f}\mathrm{{Hz}}$ $\alpha={:.3f}$".format(transfer.dataset.wfs_rate, transfer.dataset.alpha), transform=ax.transAxes)
+    ax.text(0.0, 1.01, r"${:.0f}\mathrm{{Hz}}$ $\alpha={:.3f}$".format(transfer.dataset.instrument_data.wfs_rate, transfer.dataset.instrument_data.alpha), transform=ax.transAxes)
