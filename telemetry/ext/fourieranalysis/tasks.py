@@ -14,18 +14,16 @@ def pair(self, dataset_id):
         return "Loop wasn't closed"
     other = dataset.instrument_data.match()
     if other is None:
-        print("Couldn't match {0}".format(dataset))
-        return "Can't match."
+        return "Can't match {0}.".format(dataset)
     pair = self.session.query(TransferFunctionPair).filter(
         TransferFunctionPair.loop_open_id == other.id).filter(
         TransferFunctionPair.loop_closed_id == dataset.id).one_or_none()
     if pair is None:
-        print("Matched {0}".format(dataset))
-        print("To {0}".format(other))
         pair = TransferFunctionPair(loop_open=other, loop_closed=dataset)
         self.session.add(pair)
+    message = "Success, matched to {0}".format(other)
     self.session.commit()
-    return "Success, matched to {0}".format(other)
+    return message
     
 
 @app.celery.task(bind=True)
