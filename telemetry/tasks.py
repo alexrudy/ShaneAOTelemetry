@@ -13,7 +13,7 @@ from astropy.utils.console import ProgressBar
 logger = get_task_logger(__name__)
 
 from .application import app
-from .models import Dataset, TelemetryKind, DatasetMetadataBase, Instrument
+from .models import Dataset, TelemetryKind, DatasetInfoBase, Instrument
 
 def progress(resultset):
     """A group result progressbar."""
@@ -64,7 +64,7 @@ def read(self, filename, force=False):
     if force or (dataset is None):
         with h5py.File(filename, mode='r') as f:
             dataset = Dataset.from_h5py_group(self.session, f['telemetry'])
-            metadata = DatasetMetadataBase.from_mapping(dataset, f['telemetry'].attrs, instrument=instrument.metadata_type)
+            metadata = DatasetInfoBase.from_mapping(dataset, f['telemetry'].attrs, instrument=instrument.metadata_type)
             self.session.add(metadata)
     dataset.update(self.session)
     self.session.add(dataset)

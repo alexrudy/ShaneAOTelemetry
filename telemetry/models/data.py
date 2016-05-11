@@ -27,7 +27,7 @@ import h5py
 from .base import Base
 from .case import Telemetry, TelemetryKind
 
-__all__ = ['Instrument', 'DatasetMetadataBase', 'Dataset', 'Tag']
+__all__ = ['Instrument', 'DatasetInfoBase', 'Dataset', 'Tag']
 
 class Instrument(Base):
     """An association object which matches an instrument to a dataset."""
@@ -44,7 +44,7 @@ class Instrument(Base):
         return instrument
         
 
-class DatasetMetadataBase(Base):
+class DatasetInfoBase(Base):
     """Instrument association base."""
     
     type = Column(String(30))
@@ -73,6 +73,10 @@ class DatasetMetadataBase(Base):
         mapper = inspect(cls).mapper
         cls = mapper.polymorphic_map[instrument].class_
         
+        return cls._from_mapping(dataset, mapping)
+        
+    @classmethod
+    def _from_mapping(cls, dataset, mapping):
         colnames = set(c.name for c in cls.__table__.columns)
         attrs = dict((k,mapping[k]) for k in mapping.keys() if k in colnames)
         for key in attrs:
@@ -116,7 +120,7 @@ class Dataset(Base):
     _tags = relationship("Tag", secondary=dataset_tag_association_table, back_populates="datasets")
     tags = association_proxy("_tags", "text")
     
-    instrument_data = relationship("DatasetMetadataBase", backref=backref("dataset", uselist=False), cascade="all", uselist=False)
+    instrument_data = relationship("DatasetInfoBase", backref=backref("dataset", uselist=False), cascade="all", uselist=False)
     instrument_id = Column(Integer, ForeignKey("instrument.id"))
     instrument = relationship("Instrument", backref="datasets")
     filename = Column(Unicode, doc="Filename for the HDF5 data.")

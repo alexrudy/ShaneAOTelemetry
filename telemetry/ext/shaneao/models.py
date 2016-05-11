@@ -4,14 +4,15 @@ from sqlalchemy import Column, Table
 from sqlalchemy import Integer, String, DateTime, Float, ForeignKey, Boolean, Date, Unicode
 from sqlalchemy.ext.hybrid import hybrid_property 
 
-from telemetry.models.data import DatasetMetadataBase
+from telemetry.models.data import DatasetInfoBase
+from telemetry.models.base import Base
 
 __all__ = ['ShaneAOMetadata']
 
-class ShaneAOMetadata(DatasetMetadataBase):
-    """An object containing the ShaneAO Metadata."""
+class ShaneAOInfo(DatasetInfoBase):
+    """An object containing the ShaneAO Info."""
     
-    id = Column(Integer, ForeignKey(DatasetMetadataBase.id, ondelete="CASCADE"), primary_key=True)
+    id = Column(Integer, ForeignKey(DatasetInfoBase.id, ondelete="CASCADE"), primary_key=True)
     
     __mapper_args__ = {
         'polymorphic_identity' : 'shaneao',
@@ -89,3 +90,5 @@ class ShaneAOMetadata(DatasetMetadataBase):
         for key in self.SEQUENCE_EXCLUDES:
             del attrs[key]
         return attrs
+    
+
