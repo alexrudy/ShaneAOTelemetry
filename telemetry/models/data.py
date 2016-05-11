@@ -119,11 +119,17 @@ class Dataset(Base):
     instrument_data = relationship("DatasetMetadataBase", backref=backref("dataset", uselist=False), cascade="all", uselist=False)
     instrument_id = Column(Integer, ForeignKey("instrument.id"))
     instrument = relationship("Instrument", backref="datasets")
-    filename = Column(Unicode)
-    h5path = Column(String)
-    sequence = Column(Integer)
-    created = Column(DateTime)
-    date = Column(Date)
+    filename = Column(Unicode, doc="Filename for the HDF5 data.")
+    h5path = Column(String, doc="Path inside the HDF5 file to telemetry data.")
+    sequence = Column(Integer, doc="Dataset sequence number.")
+    created = Column(DateTime, doc="Creation datetime.")
+    date = Column(Date, doc="Creation date (UT)")
+    
+    # Data parameters which are universal.
+    rate = Column(Float, doc="Sampling Rate")
+    closed = Column(Boolean, doc="Was the loop closed")
+    gain = Column(Float, doc="The gain for this dataset, as best as it can be identified for this instrument.")
+    bleed = Column(Float, doc="The bleed for this dataset, as best as it can be identified for this instrument.")
     
     @validates('created')
     def validate_created(self, key, value):
