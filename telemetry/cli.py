@@ -68,6 +68,7 @@ class ClickGroup(object):
         """Add an option"""
         name = kwargs.pop('name')
         kwargs['callback'] = cls.callback(name)
+        kwargs.setdefault('expose_value', False)
         return click.option(*args, **kwargs)
     
     @classmethod
@@ -75,6 +76,7 @@ class ClickGroup(object):
         """Add an argument."""
         name = kwargs.pop('name')
         kwargs['callback'] = cls.callback(name)
+        kwargs.setdefault('expose_value', False)
         return click.argument(*args, **kwargs)
         
     @classmethod
@@ -85,8 +87,8 @@ class ClickGroup(object):
     
 class CeleryProgressGroup(ClickGroup):
     """A state management for celery progress."""
-    def __init__(self, try_one=False, wait=True, limit=None):
-        super(CeleryProgressGroup, self).__init__(try_one=try_one, wait=wait, limit=limit)
+    def __init__(self, try_one=False, wait=True, limit=None, local=False):
+        super(CeleryProgressGroup, self).__init__(try_one=try_one, wait=wait, limit=limit, local=False)
         
     def __call__(self, iterator):
         """Call the progress."""
@@ -100,9 +102,16 @@ class CeleryProgressGroup(ClickGroup):
             except StopIteration:
                 raise CeleryGroupError("No tasks were available.")
             else:
-                result = task.delay().get()
+                if self.local:
+                    result = task()
+                else:
+                    result = task.delay().get()
                 click.echo("Success! {0}".format(result))
-        r = g.delay()
+        if self.local:
+            r = g()
+            return r
+        else:
+            r = g.delay()
         if self.wait:
             progress(r)
         else:
@@ -113,14 +122,13 @@ class CeleryProgressGroup(ClickGroup):
     def decorate(cls, func):
         """docstring for decorate"""
         func = cls.option("--try-one/--no-try", default=False,
-            name="try_one", 
-            expose_value=False, help="Try a single value")(func)
+            name="try_one", help="Try a single value")(func)
         func = cls.option("--limit", type=int, default=None,
-            name="limit",
-            expose_value=False, help="Limit the number of tasks to process.")(func)
+            name="limit", help="Limit the number of tasks to process.")(func)
         func = cls.option("--wait/--no-wait", default=True,
-            name="wait",
-            expose_value=False, help="Wait for tasks to finish.")(func)
+            name="wait", help="Wait for tasks to finish.")(func)
+        func = cls.option("--local/--remote", default=True, name="local",
+            help="Run tasks locally.")(func)
         func = super(CeleryProgressGroup, cls).decorate(func)
         return func
 
