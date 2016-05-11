@@ -2,6 +2,7 @@
 from __future__ import absolute_import
 import os, glob
 import itertools
+import datetime
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
@@ -10,7 +11,7 @@ import click
 
 from celery import group
 
-from .cli import cli, celery_progress
+from .cli import cli, celery_progress, ClickError
 from .tasks import read as read_task, refresh as refresh_task, rgenerate
 from .application import app
 from .models import Base, Dataset, TelemetryKind, TelemetryPrerequisite
@@ -77,6 +78,24 @@ def initdb(echo):
         app.session.commit()
         
     
+
+@cli.command()
+@click.option("--date", help="Limit the table to a single date.", default=None)
+def show(date):
+    """show datasets"""
+    from astropy.table import Table
+    with app.app_context():
+        query = app.session.query(Dataset).order_by(Dataset.created)
+        if date is not None:
+            s_date = datetime.datetime.strptime(date, "%Y-%m-%d").date()
+            e_date = s_date + datetime.timedelta(days=1)
+            click.echo("Showing data created on {0}".format(s_date))
+            query = query.filter(Dataset.date.between(s_date,e_date))
+        if query.count() == 0:
+            raise ClickError("No records found.")
+        keys = ["created", "sequence", "rate", "closed", "gain", "bleed"]
+        t = Table([d.attributes() for d in query.all()])
+        t[keys].more()
 
 @cli.command()
 @celery_progress

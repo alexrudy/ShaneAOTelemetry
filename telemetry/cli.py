@@ -15,7 +15,9 @@ from telemetry.models import Dataset, TelemetryKind
 from sqlalchemy.sql import between
 from astropy.utils.console import ProgressBar
 
-__all__ = ['progress', 'cli']
+from .application import app
+
+__all__ = ['progress', 'cli', 'ClickError']
 
 def progress(resultset):
     """A group result progressbar."""
@@ -29,7 +31,7 @@ def progress(resultset):
     
 @click.group()
 def cli():
-    pass
+    click.echo("Connected to {0}".format(app.config['SQLALCHEMY_DATABASE_URI']))
     
 @cli.command()
 def shell():
@@ -39,8 +41,12 @@ def shell():
     from .models import Dataset
     with app.app_context():
         IPython.embed()
+        
     
-class CeleryGroupError(click.ClickException):
+
+
+
+class ClickError(click.ClickException):
     """Raised with an error from the celery group."""
     
     def show(self):
@@ -100,7 +106,7 @@ class CeleryProgressGroup(ClickGroup):
             try:
                 task = next(iter(g))
             except StopIteration:
-                raise CeleryGroupError("No tasks were available.")
+                raise ClickError("No tasks were available.")
             else:
                 if self.local:
                     result = task()
