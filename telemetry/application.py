@@ -107,7 +107,7 @@ class TelemetryFlask(Flask):
 def get_instance_path():
     """Get the instance path."""
     hostname = os.environ.get("TELEMETRYHOST", socket.gethostname())
-    packagedir = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
+    packagedir = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "config"))
     return os.path.abspath(os.path.join(packagedir, hostname))
     
 app = TelemetryFlask("telemetry", instance_path=get_instance_path(), instance_relative_config=True)
