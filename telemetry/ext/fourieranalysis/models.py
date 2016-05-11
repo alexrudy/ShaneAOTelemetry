@@ -126,6 +126,8 @@ class TransferFunctionFit(DerivedTelemetry):
         }
         
     
+    MODELCLS = TransferFunctionModel
+    
     @classmethod
     def from_telemetry_kind(cls, kind, session=None):
         """From the name of a telemetry kind."""
@@ -143,11 +145,11 @@ class TransferFunctionFit(DerivedTelemetry):
     def generate(self, dataset):
         """From a dataset, generate a modeled transfer function."""
         tf = dataset.telemetry[self.transferfunction]
-        model = fit_models(tf)
+        model = fit_models(tf, self.MODELCLS)
         
         with dataset.open() as g:
             m = g.require_group(self.h5path)
-            for param_name in ["tau", "ln_c", "gain", "rate"]:
+            for param_name in model.param_names:
                 if param_name in m:
                     del m[param_name]
                 param = getattr(model, param_name)
@@ -157,9 +159,9 @@ class TransferFunctionFit(DerivedTelemetry):
     def read(self, group):
         """Reading a model should return a model"""
         kwargs = {}
-        for param_name in ["tau", "ln_c", "gain", "rate"]:
+        for param_name in self.MODELCLS.param_names:
             kwargs[param_name] = group[param_name][...]
-        return TransferFunctionModel(**kwargs)
+        return self.MODELCLS(**kwargs)
 
 
 def initdb(session):

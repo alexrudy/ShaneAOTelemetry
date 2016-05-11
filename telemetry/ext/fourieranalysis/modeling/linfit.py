@@ -68,13 +68,15 @@ def apply_LevMarLSQFitter(m, x, y):
     return model
     
 
-def fit_models(tf, progressbar=False):
+def fit_models(tf, cls, progressbar=False):
     """Fit all models."""
     data = tf.read()
     template = np.ones(data.shape[:-1], dtype=np.float)
-    model_init = expected_model(tf)
-    model_result = TransferFunction(tau=template * model_init.tau.value, gain=template * model_init.gain.value,
-        ln_c=template * model_init.ln_c.value, rate=model_init.rate)
+    model_init = cls.expected(tf)
+    attrs = {}
+    for param_name in model_init.param_names:
+        attrs[param_name] = getattr(model_init, param_name).value * template
+    model_result = cls(**attrs)
     
     x = frequencies(data.shape[-1], model_init.rate)
     fitter = fitting.LevMarLSQFitter()
@@ -89,7 +91,6 @@ def fit_models(tf, progressbar=False):
     for i in iterator:
         y = data[i,:]
         model = apply_LevMarLSQFitter(model_init, x, y)
-        model_result.tau.value.flat[i] = model.tau.value
-        model_result.gain.value.flat[i] = model.gain.value
-        model_result.ln_c.value.flat[i] = model.ln_c.value
+        for param_name in model.param_names:
+            getattr(model_result, param_name).value.flat[i] = getattr(model, param_name).value
     return model_result
