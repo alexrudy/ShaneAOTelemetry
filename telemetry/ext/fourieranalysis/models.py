@@ -116,6 +116,19 @@ class TransferFunction(DerivedTelemetry):
             g.create_dataset(self.h5path, data=tf_data)
             g.attrs['length'] = tf_data.shape[-1]
         
+    def normalized(self, data):
+        """Normalize the data from a transfer function."""
+        length = data.shape[-1]
+        weights = np.linspace(-1.0, 1.0, length)
+        normed = data / data[...,weights >= (2.0/3.0)].mean(axis=-1)[...,None]
+        return normed.T.reshape(data.shape)
+        
+    def logaverage(self, data):
+        """Log-average of the data."""
+        normed = self.normalized(data)
+        length = normed.shape[-1]
+        normed = normed.reshape((-1, length))
+        return np.exp(np.log(normed).mean(axis=1))
         
     
 class TransferFunctionFit(DerivedTelemetry):

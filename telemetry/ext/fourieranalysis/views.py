@@ -60,18 +60,18 @@ def plot_transfer_object(transfer, ax):
     """Plot a periodogram."""
     data = transfer.read()
     length = data.shape[-1]
-    freq = frequencies(length, transfer.dataset.instrument_data.wfs_rate)
-    weights = np.abs(frequencies(length, 1.0).value)
-    data_p = data.T.reshape((length, -1))
-    data_p /= data_p[weights >= (2.0/3.0) * np.max(weights)].mean(axis=0)[None,:]
-    data_m = np.exp(np.log(data_p).mean(axis=1))
-    alpha = 1.0 / float(data_p.shape[1])
+    freq = frequencies(length, transfer.dataset.rate)
+    
+    data_p = transfer.kind.normalized(data)
+    data_m = transfer.kind.logaverage(data)
+    
+    alpha = 1.0 / float(np.prod(data_p.shape[:-1]))
     
     expected_model = TransferFunctionModel.expected(transfer.dataset)
     data_e = expected_model(freq)
     
-    show_periodogram(ax, data_p, rate=transfer.dataset.instrument_data.wfs_rate, color='b', alpha=alpha)
-    show_periodogram(ax, data_m, rate=transfer.dataset.instrument_data.wfs_rate, color='b', label="Data")
+    show_periodogram(ax, data_p.T, rate=transfer.dataset.instrument_data.wfs_rate, color='b', alpha=alpha)
+    show_periodogram(ax, data_m.T, rate=transfer.dataset.instrument_data.wfs_rate, color='b', label="Data")
     show_periodogram(ax, data_e, rate=transfer.dataset.instrument_data.wfs_rate, color='r', label='Expected Model')
     show_model_parameters(ax, expected_model, pos=(0.6, 0.1), name="Expected")
     
