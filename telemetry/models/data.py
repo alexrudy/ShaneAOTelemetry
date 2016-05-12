@@ -231,6 +231,12 @@ class Dataset(Base):
     def __repr__(self):
         """Sensible representation."""
         return "<{0} {sequence:d} from {date:%Y-%m-%d}>".format(self.__class__.__name__, **self.attributes())
+        
+    def title(self):
+        """A matplotlib-suitable title string."""
+        attrs = self.attributes()
+        attrs['gtext'] = "g={0:.3f}".format(self.gain) if self.closed else "open"
+        return "{0} {sequence:d} on {date:%Y-%m-%d} ({gtext:s}, b={bleed:.2f})".format(self.__class__.__name__, **attrs)
     
     @property
     def path(self):

@@ -139,7 +139,7 @@ class CeleryProgressGroup(ClickGroup):
             name="limit", help="Limit the number of tasks to process.")(func)
         func = cls.option("--wait/--no-wait", default=True,
             name="wait", help="Wait for tasks to finish.")(func)
-        func = cls.option("--local/--remote", default=True, name="local",
+        func = cls.option("--local/--remote", default=False, name="local",
             help="Run tasks locally.")(func)
         func = super(CeleryProgressGroup, cls).decorate(func)
         return func
