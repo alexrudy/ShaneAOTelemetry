@@ -99,12 +99,13 @@ class CeleryProgressGroup(ClickGroup):
     def __call__(self, iterator):
         """Call the progress."""
         if self.limit is not None:
+            click.echo("Limiting to {0:d} items.".format(self.limit))
             iterator = itertools.islice(iterator, 0, self.limit)
-        g = group(iterator)
+        iterator = iter(iterator)
         if self.try_one:
             click.echo("Trying a single task:")
             try:
-                task = next(iter(g))
+                task = next(iterator)
             except StopIteration:
                 raise ClickError("No tasks were available.")
             else:
@@ -113,16 +114,21 @@ class CeleryProgressGroup(ClickGroup):
                 else:
                     result = task.delay().get()
                 click.echo("Success! {0}".format(result))
+        
+        g = group(iterator)
         if self.local:
-            r = g()
-            return r
+            click.echo("Running tasks locally.".format(self.limit))
+            
+            for task in g:
+                task()
+            return None
         else:
             r = g.delay()
-        if self.wait:
-            progress(r)
-        else:
-            click.echo("Tasks started for group {0}".format(r.id))
-        return r
+            if self.wait:
+                progress(r)
+            else:
+                click.echo("Tasks started for group {0}".format(r.id))
+            return r
         
     @classmethod
     def decorate(cls, func):
