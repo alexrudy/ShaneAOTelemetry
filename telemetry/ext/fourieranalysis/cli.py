@@ -47,8 +47,35 @@ def transferfunction(progress, component, force):
         click.echo("Generating {0} for {1} datasets.".format(kind.name, query.count()))
         click.echo("{0:d} datasets already have {1}".format(t_query.count(), kind.name))
         
-        progress(tasks.transferfunction.si(dataset.id, opt.kind) for dataset in query.all())
+        progress(tasks.transferfunction.si(dataset.id, component) for dataset in query.all())
     
+
+@fa.command()
+@click.argument("component", type=str)
+@click.option("--force/--no-force", help="Force re-fit.", default=False)
+@celery_progress
+def tffit(progress, component, force):
+    """Fit a transfer function"""
+    with app.app_context():
+        tf_path = "transferfunction/{0}".format(component)
+        tm_path = "transferfunctionmodel/{0}".format(component)
+        kind = TelemetryKind.require(app.session, tm_path)
+        if not hasattr(kind, 'generate'):
+            raise click.BadParameter("{0} does not appear to have a .generate() method.".format(component))
+            
+        e_query = app.session.query(Dataset.id).join(Telemetry).join(TelemetryKind).filter(TelemetryKind.h5path == tf_path)
+        t_query = app.session.query(Dataset.id).join(Telemetry).join(TelemetryKind).filter(TelemetryKind.h5path == tm_path)
+        query = app.session.query(Dataset).filter(Dataset.id.in_(e_query)).join(Dataset.pairs)
+        
+        click.echo("{0:d} potential target datasets.".format(query.count()))
+        
+        if not force:
+            query = query.filter(Dataset.id.notin_(t_query))
+        
+        click.echo("Generating {0} for {1} datasets.".format(kind.name, query.count()))
+        click.echo("{0:d} datasets already have {1}".format(t_query.count(), kind.name))
+        
+        progress(tasks.transferfunction_model.si(dataset.id, component) for dataset in query.all())
 
 @fa.command()
 @click.argument("component", type=str)
