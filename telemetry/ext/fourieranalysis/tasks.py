@@ -48,6 +48,16 @@ def transferfunction(self, dataset_id, kind):
     self.session.commit()
     
 @app.celery.task(bind=True)
+def transferfunction_model(self, dataset_id, kind):
+    """Make a transfer function."""
+    path = "transferfunctionmodel/{0}".format(kind)
+    kind = self.session.query(TelemetryKind).filter(TelemetryKind.h5path == path).one()
+    dataset = self.session.query(Dataset).filter_by(id=dataset_id).one()
+    tel = kind.generate(dataset)
+    self.session.add(tel)
+    self.session.commit()
+    
+@app.celery.task(bind=True)
 def transferfunction_plot(self, dataset_id, kind):
     """Make a plot of a transfer function."""
     import matplotlib
