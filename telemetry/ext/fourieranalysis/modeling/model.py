@@ -34,8 +34,8 @@ class TransferFunction(FittableModel):
     @classmethod
     def expected(cls, dataset):
         """Given an emperical transfer function, compute the expected model."""
-        return cls(tau=(1.0/dataset.instrument_data.wfs_rate) + 900e-6, gain=dataset.instrument_data.gain, 
-            ln_c=np.log(1.0 - dataset.instrument_data.tweeter_bleed), rate=dataset.instrument_data.wfs_rate)
+        return cls(tau=(1.0/dataset.rate) + 900e-6, gain=dataset.gain, 
+            ln_c=np.log(1.0 - dataset.bleed), rate=dataset.rate)
     
     @staticmethod
     def evaluate(freq, tau, gain, ln_c, rate):

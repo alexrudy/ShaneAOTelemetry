@@ -72,7 +72,7 @@ def fit_models(tf, cls, progressbar=False):
     """Fit all models."""
     data = tf.read()
     template = np.ones(data.shape[:-1], dtype=np.float)
-    model_init = cls.expected(tf)
+    model_init = cls.expected(tf.dataset)
     attrs = {}
     for param_name in model_init.param_names:
         attrs[param_name] = getattr(model_init, param_name).value * template
