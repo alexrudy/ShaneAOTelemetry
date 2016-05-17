@@ -124,10 +124,14 @@ class CeleryProgressGroup(ClickGroup):
             return None
         else:
             r = g.delay()
-            if self.wait:
-                progress(r)
-            else:
-                click.echo("Tasks started for group {0}".format(r.id))
+            try:
+                if self.wait:
+                    progress(r)
+                else:
+                    click.echo("Tasks started for group {0}".format(r.id))
+            except KeyboardInterrupt:
+                click.echo("Tasks will not be revoked.")
+                raise
             return r
         
     @classmethod
