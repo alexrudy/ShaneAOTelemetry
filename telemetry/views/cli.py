@@ -30,10 +30,12 @@ def histogram(progress, component):
 @cli.command()
 @celery_progress
 @click.argument("component", type=str)
-def movie(progress, component):
+@click.option("--tlimit", type=int, help="Time limit.")
+@click.option("--force/--no-force", default=False, help="Force update movies.")
+def movie(progress, component, tlimit, force):
     """A movie of a single component."""
     with app.app_context():
         kind = TelemetryKind.require(app.session, component)
         datasets = app.session.query(Dataset).join(Dataset.kinds).filter(TelemetryKind.id == kind.id)
-        progress(make_movie.si(dataset.id, component) for dataset in datasets.all())
+        progress(make_movie.si(dataset.id, component, force=force, limit=tlimit) for dataset in datasets.all())
     

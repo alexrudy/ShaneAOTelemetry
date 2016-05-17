@@ -2,6 +2,7 @@
 """
 Plot a time-series object.
 """
+import os
 import numpy as np
 from .core import save_ax_telemetry, construct_filename
 from ..application import app
@@ -16,11 +17,14 @@ def timeseries(ax, telemetry, **kwargs):
     kwargs.setdefault('color', 'k')
     kwargs.setdefault('alpha', 0.01)
     
-    ax.plot(time, data.T, **kwargs)
+    data = data.transpose()
+    data = data.reshape((data.shape[0], -1))
+    ax.plot(time, data, **kwargs)
     ax.set_xlabel("Time (s)")
     ax.set_ylabel("{0:s}".format(telemetry.kind.name))
     ax.set_title("Timeseries of {0:s} from {1:s}".format(
         telemetry.kind.name, telemetry.dataset.title()))
+    ax.set_xlim(np.min(time), np.max(time))
 
 @app.celery.task(bind=True)
 def make_timeseries(self, dataset_id, component):
@@ -56,7 +60,7 @@ def make_histogram(self, dataset_id, component):
 
 class PhaseMovieView(object):
     """A view for a phase movie, the main phase view area, attached to a single axes object."""
-    def __init__(self, ax, cube, norm=None, cmap='jet', title='Phase at {0: 5.0f}/{1:05.0f}', 
+    def __init__(self, ax, cube, norm=None, cmap='jet', title='Phase at {0:f}/{1:f}', 
         cb_show=True, cb_label='Phase error (nm)', time=None, **kwargs):
         super(PhaseMovieView, self).__init__()
         from matplotlib.colors import Normalize
@@ -154,21 +158,34 @@ class PhaseSummaryPlot(object):
     
 
 @app.celery.task(bind=True)
-def make_movie(self, dataset_id, component, cmap='binary', shape=(32,32,-1), sigclip=True, log=False):
+def make_movie(self, dataset_id, component, cmap='viridis', shape=(32,32,-1), sigclip=True, log=False, limit=None, force=False):
     """Make a movie."""
     import matplotlib
     matplotlib.use("Agg")
+    matplotlib.rcParams['text.usetex'] = False
+    matplotlib.rcParams['savefig.dpi'] = 300
+    
     from matplotlib.gridspec import GridSpec
     from matplotlib.colors import Normalize, SymLogNorm
     from matplotlib import animation
     import matplotlib.pyplot as plt
+    import tqdm
     
     dataset = self.session.query(Dataset).get(dataset_id)
     telemetry = dataset.telemetry[component]
+    
+    
+    filename = construct_filename(telemetry, component, folder='movies', ext='mp4')
+    if os.path.exists(filename) and not force:
+        return
+    
     data = telemetry.read()
+    if limit:
+        data = data[...,:limit]
     data.shape = shape
     assert data.ndim == 3, "Shape not compatible: {0!r}".format(data.shape)
     frames = data.shape[-1]
+    times = np.arange(frames) / telemetry.dataset.rate
     
     if sigclip:
         sigma = np.std(data)
@@ -187,19 +204,21 @@ def make_movie(self, dataset_id, component, cmap='binary', shape=(32,32,-1), sig
     gs = GridSpec(2, 1, height_ratios=[1, 0.25])
     
     rms_ax = figure.add_subplot(gs[1,:])
-    rms = PhaseSummaryPlot(rms_ax, x_label='Time', y_label="RMS nm of phase error")
+    rms = PhaseSummaryPlot(rms_ax, time=times, x_label='Time', y_label="RMS nm of phase error")
+    rms_ax.plot(times, np.std(data, axis=(0,1)), '-')
+    rms_ax.set_xlim(np.min(times), np.max(times))
     
-    rms_ax.plot(np.std(data, axis=(0,1)), '-')
     phase_ax = figure.add_subplot(gs[0,:])
-    image = PhaseMovieView(phase_ax, data.T, norm=norm, cmap=cmap)
+    image = PhaseMovieView(phase_ax, data.T, norm=norm, cmap=cmap, time=times)
     
-    filename = construct_filename(telemetry, component, folder='movies', ext='mp4')
+    fps = 30
+    
     
     def animate(n):
         """Animate at index n."""
         image.update(n)
         rms.update(n)
-    
+
     anim = animation.FuncAnimation(figure, animate, frames=frames, interval=1)
-    anim.save(filename, fps=30, writer='ffmpeg')
+    anim.save(filename, fps=fps, writer='ffmpeg')
     return filename
