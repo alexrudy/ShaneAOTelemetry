@@ -135,6 +135,9 @@ class Dataset(Base):
     gain = Column(Float, doc="The gain for this dataset, as best as it can be identified for this instrument.")
     bleed = Column(Float, doc="The bleed for this dataset, as best as it can be identified for this instrument.")
     
+    # Data parameters which are cached for querying.
+    nsamples = Column(Integer)
+    
     @validates('created')
     def validate_created(self, key, value):
         """Validate created."""
@@ -185,6 +188,10 @@ class Dataset(Base):
         to_check_paths = [kind.h5path for kind in session.query(TelemetryKind).all()]
         keys = collections.deque(to_check_paths)
         keys.extend(g.keys())
+        
+        for key in g.keys():
+            if isinstance(g[key], h5py.Dataset):
+                self.nsamples = g[key].shape[-1]
         
         while len(keys):
             key = keys.popleft()
