@@ -9,29 +9,10 @@ import h5py
 from sqlalchemy.orm import object_session
 from celery import chain, group
 from celery.utils.log import get_task_logger
-from astropy.utils.console import ProgressBar
 logger = get_task_logger(__name__)
 
 from .application import app
 from .models import Dataset, TelemetryKind, DatasetInfoBase, Instrument
-
-def progress(resultset):
-    """A group result progressbar."""
-    try:
-        with ProgressBar(len(resultset)) as pbar:
-            pbar.update(0)
-            while not resultset.ready():
-                pbar.update(resultset.completed_count())
-                time.sleep(0.1)
-            pbar.update(resultset.completed_count())
-    except KeyboardInterrupt as e:
-        resultset.revoke()
-        raise
-    else:
-        # Raise the error, if there was one.
-        if resultset.failed():
-            resultset.get()
-    return
 
 @app.celery.task(bind=True)
 def generate(self, dataset_id, telemetrykind_id):
