@@ -63,10 +63,20 @@ def mean(ax, telemetry, **kwargs):
 
 def mean_2d_view(ax, data, telemetry, **kwargs):
     """2D view of mean data throughout a timeseries."""
+    kwargs.setdefault('cmap', 'viridis')
     image = ax.imshow(data, **kwargs)
     ax.figure.colorbar(image, ax=ax)
-    ax.set_title("Timeseries of {0:s} from {1:s}".format(
+    ax.grid(False)
+    ax.set_title("Mean of {0:s} from {1:s}".format(
         telemetry.kind.name, telemetry.dataset.title()))
+
+def mean_1d_view(ax, data, telemetry, **kwargs):
+    """1D view of mean data throughout a timeseries."""
+    mode_n = np.arange(data.shape[0])
+    image = ax.bar(mode_n, data, **kwargs)
+    ax.set_title("Mean of {0:s} from {1:s}".format(
+        telemetry.kind.name, telemetry.dataset.title()))
+    ax.set_xlim(0, data.shape[0] + 1)
 
 @telemetry_plotting_task(category='histogram')
 def histogram(ax, telemetry, **kwargs):
