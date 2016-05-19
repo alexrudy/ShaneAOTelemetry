@@ -98,17 +98,35 @@ class MatrixTransform(TelemetryGenerator):
     SOURCE = 'slopes'
     OUTPUT_SHAPE = None
     
-    def generate(self, dataset):
-        """Generate data for a dataset."""
+    def _get_source(self, dataset):
+        """Get the source from a dataset."""
         s = dataset.telemetry[self.SOURCE].read()
         s = np.matrix(s)
         s.shape = (s.shape[0], s.shape[1], 1)
-
-        vm = get_matrix(self.MATRIX)
-        coeffs = vm * s
-        coeffs = coeffs.view(np.ndarray)
+        return s
+    
+    def _postprocess(self, coeffs):
+        """Postprocess the matrix multiply"""
         if self.OUTPUT_SHAPE is not None:
             coeffs.shape = self.OUTPUT_SHAPE
+        return coeffs
+    
+    def _get_matrix(self, dataset):
+        """Retrieve the appropriate matrix."""
+        return get_matrix(self.MATRIX)
+    
+    def _apply_matrix(self, s, m):
+        """Apply the matrix."""
+        coeffs = m * s
+        coeffs = coeffs.view(np.ndarray)
+        return coeffs
+    
+    def generate(self, dataset):
+        """Generate data for a dataset."""
+        m = self._get_matrix(dataset)
+        s = self._get_source(dataset)
+        coeffs = self._apply_matrix(s, m)
+        coeffs = self._postprocess(coeffs)
         with dataset.open() as g:
             if self.h5path in g:
                 del g[self.h5path]
@@ -144,6 +162,11 @@ class FourierCoefficients(MatrixTransform):
         
     MATRIX = "N"
     OUTPUT_SHAPE = (32, 32, -1)
+    
+    def _postprocess(self, coeffs):
+        """Postprocess the data."""
+        coeffs = super(FourierCoefficients, self)._postprocess(coeffs)
+        return np.fft.fftshift(coeffs, axes=(0,1))
 
 class HEigenvalues(TelemetryGenerator):
     """The eiginvalues of the H matrix."""
