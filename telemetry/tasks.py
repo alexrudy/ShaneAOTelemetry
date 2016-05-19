@@ -19,7 +19,6 @@ def generate(self, dataset_id, telemetrykind_id, force=False):
     """A generate task."""
     kind = self.session.query(TelemetryKind).filter_by(id=telemetrykind_id).one()
     dataset = self.session.query(Dataset).filter_by(id=dataset_id).one()
-    logger.info("IDs {0} and {1}".format(telemetrykind_id, dataset_id))
     logger.info("Generating '{0}' from {1}".format(kind.h5path, dataset))
     if (kind.h5path in dataset.telemetry) and (force):
         logger.debug("Removed old telemetry {0}".format(kind.h5path))
