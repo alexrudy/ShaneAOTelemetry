@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
 
 import click
-from telemetry.cli import cli, celery_progress
+from telemetry.cli import cli, CeleryProgressGroup
+from telemetry.db import DatasetQuery
 from telemetry.application import app
 from telemetry.models import Dataset, TelemetryKind, Telemetry
-from . import tasks
+from telemetry.views.cli import plotting_command
+from telemetry import tasks as base_tasks
+from .views import periodogram_plot, transferfunction_plot
 
 @cli.group()
 def fa():
@@ -13,7 +16,7 @@ def fa():
 
 
 @fa.command()
-@celery_progress
+@CeleryProgressGroup.decorate
 def sequence(progress):
     """Sequence datasets."""
     with app.app_context():
@@ -22,69 +25,49 @@ def sequence(progress):
         progress(tasks.pair.si(dataset.id) for dataset in query.all())
         
 
-@fa.command()
-@click.argument("component", type=str)
-@click.option("--force/--no-force", help="Force regenerate.", default=False)
-@celery_progress
-def transferfunction(progress, component, force):
-    """Make a transfer function"""
-    with app.app_context():
-        tf_path = "transferfunction/{0}".format(component)
-        pg_path = "periodogram/{0}".format(component)
-        kind = TelemetryKind.require(app.session, tf_path)
-        if not hasattr(kind, 'generate'):
-            raise click.BadParameter("{0} does not appear to have a .generate() method.".format(component))
-            
-        e_query = app.session.query(Dataset.id).join(Telemetry).join(TelemetryKind).filter(TelemetryKind.h5path == pg_path)
-        t_query = app.session.query(Dataset.id).join(Telemetry).join(TelemetryKind).filter(TelemetryKind.h5path == tf_path)
-        query = app.session.query(Dataset).filter(Dataset.id.in_(e_query)).join(Dataset.pairs)
-        
-        click.echo("{0:d} potential target datasets.".format(query.count()))
-        
-        if not force:
-            query = query.filter(Dataset.id.notin_(t_query))
+def generate_pairwise(name, task, parent_name, child_name, **kwargs):
+    """Generate a pairwise CLI."""
     
-        click.echo("Generating {0} for {1} datasets.".format(kind.name, query.count()))
-        click.echo("{0:d} datasets already have {1}".format(t_query.count(), kind.name))
-        
-        progress(tasks.transferfunction.si(dataset.id, component) for dataset in query.all())
+    group = kwargs.pop('group', fa)
     
-
-@fa.command()
-@click.argument("component", type=str)
-@click.option("--force/--no-force", help="Force re-fit.", default=False)
-@celery_progress
-def tffit(progress, component, force):
-    """Fit a transfer function"""
-    with app.app_context():
-        tf_path = "transferfunction/{0}".format(component)
-        tm_path = "transferfunctionmodel/{0}".format(component)
-        kind = TelemetryKind.require(app.session, tm_path)
-        if not hasattr(kind, 'generate'):
-            raise click.BadParameter("{0} does not appear to have a .generate() method.".format(component))
+    @group.command(name=name)
+    @click.argument("component", type=str)
+    @click.option("--force/--no-force", help="Force regenerate.", default=False)
+    @CeleryProgressGroup.decorate
+    @DatasetQuery.decorate
+    def _command(datasetquery, progress, component, force):
+        """Generate {0} from pairwise datasets.""".format(child_name)
+        with app.app_context():
+            child = TelemetryKind.require(app.session, child_name.format(component))
+            parent = TelemetryKind.require(app.session, parent_name.format(component))
+            if not hasattr(child, 'generate'):
+                raise click.BadParameter("{0} does not appear to have a .generate() method.".format(component))
             
-        e_query = app.session.query(Dataset.id).join(Telemetry).join(TelemetryKind).filter(TelemetryKind.h5path == tf_path)
-        t_query = app.session.query(Dataset.id).join(Telemetry).join(TelemetryKind).filter(TelemetryKind.h5path == tm_path)
-        query = app.session.query(Dataset).filter(Dataset.id.in_(e_query)).join(Dataset.pairs)
+            e_query = app.session.query(Dataset.id).join(Telemetry).join(TelemetryKind).filter(TelemetryKind.id == parent.id)
+            t_query = app.session.query(Dataset.id).join(Telemetry).join(TelemetryKind).filter(TelemetryKind.id == child.id)
+            query = datasetquery(app.session).filter(Dataset.id.in_(e_query)).join(Dataset.pairs)
+            
+            if not e_query.count():
+                click.echo(e_query)
+                click.echo("No datasets have {0}. {1}".format(parent, parent.id))
+            click.echo("{0:d} potential target datasets.".format(query.count()))
         
-        click.echo("{0:d} potential target datasets.".format(query.count()))
-        
-        if not force:
-            query = query.filter(Dataset.id.notin_(t_query))
-        
-        click.echo("Generating {0} for {1} datasets.".format(kind.name, query.count()))
-        click.echo("{0:d} datasets already have {1}".format(t_query.count(), kind.name))
-        
-        progress(tasks.transferfunction_model.si(dataset.id, component) for dataset in query.all())
+            if not force:
+                query = query.filter(Dataset.id.notin_(t_query))
+            
+            kwargs['force'] = force
+            click.echo("Generating {0} for {1} datasets.".format(child.name, query.count()))
+            click.echo("{0:d} datasets already have {1}".format(t_query.count(), child.name))
+            progress(task.si(dataset.id, child.id, **kwargs) for dataset in query.all())
+    return _command
 
-@fa.command()
-@click.argument("component", type=str)
-@click.option("--force/--no-force", help="Force regenerate.", default=False)
-@celery_progress
-def tfplot(progress, component, force):
-    """Plot transfer functions"""
-    with app.app_context():
-        tf_path = "transferfunction/{0}".format(component)
-        query = app.session.query(Dataset).order_by(Dataset.created).join(Telemetry).join(TelemetryKind).filter(TelemetryKind.h5path == tf_path)
-        click.echo("Plotting transfer functions for {0:d} datasets.".format(query.count()))
-        progress(tasks.transferfunction_plot.si(dataset.id, component) for dataset in query.all())
+tf = generate_pairwise('tf', base_tasks.generate, "periodogram/{0}", "transferfunction/{0}")
+tffit = generate_pairwise('tffit', base_tasks.generate, "transferfunction/{0}", "transferfunctionmodel/{0}")
+
+@fa.group()
+def plot():
+    """Plotting for the Fourier Analysis module"""
+    pass
+
+pgplot = plotting_command('periodogram', periodogram_plot, group=plot, component_name_transform="periodogram/{0}".format)
+tfplot = plotting_command('tf', transferfunction_plot, group=plot, component_name_transform="transferfunction/{0}".format)
