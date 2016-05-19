@@ -49,7 +49,7 @@ class Periodogram(DerivedTelemetry):
         data = np.asarray(dataset.telemetry[self.kind].read())
         pdata = periodogram(data.T, length, **kwargs).T
         if not np.isfinite(pdata).all():
-            raise ValueError("Failed to periodogram {0} {1}".format(data.shape, repr(data)))
+            raise ValueError("Failed to periodogram {0} {1}".format(data.T.shape, np.isfinite(data).all()))
         with dataset.open() as g:
             g.create_dataset(self.h5path, data=pdata)
             g.attrs['length'] = length
@@ -62,10 +62,10 @@ class TransferFunctionPair(Base):
     """A pair of transfer function items."""
     
     loop_open_id = Column(Integer, ForeignKey("dataset.id"))
-    loop_open = relationship("Dataset", foreign_keys="TransferFunctionPair.loop_open_id")
+    loop_open = relationship("Dataset", foreign_keys="TransferFunctionPair.loop_open_id", backref=backref('_ol_pairs', cascade='all, delete-orphan'))
     
     loop_closed_id = Column(Integer, ForeignKey("dataset.id"))
-    loop_closed = relationship("Dataset", foreign_keys="TransferFunctionPair.loop_closed_id", backref='pairs')
+    loop_closed = relationship("Dataset", foreign_keys="TransferFunctionPair.loop_closed_id", backref=backref('pairs', cascade='all, delete-orphan'))
     
     @property
     def expected(self):
