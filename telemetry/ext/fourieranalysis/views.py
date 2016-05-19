@@ -8,6 +8,9 @@ import astropy.units as u
 from .modeling.model import TransferFunction as TransferFunctionModel
 from .modeling.linfit import apply_LevMarLSQFitter
 from telemetry.views.core import telemetry_plotting_task
+from celery.utils.log import get_task_logger
+
+log = get_task_logger(__name__)
 
 def show_periodogram(ax, periodogram, rate=1.0, **kwargs):
     """Show a periodogram on an axis."""
@@ -40,6 +43,8 @@ def periodogram_plot(ax, periodogram, **kwargs):
     data = data.reshape((-1, length))
     show_periodogram(ax, data.T, rate=periodogram.dataset.rate)
     ax.set_title('{0:s} Periodogram for s{1:04d} ({2:s})'.format(periodogram.kind.kind.capitalize(), periodogram.dataset.sequence, periodogram.dataset.gaintext))
+    if np.min(data) < 1e-10:
+        ax.set_ylim(np.min(data[data > 1e-10]), np.max(data))
     
 def plot_mean_transfer_model(transfer_model, ax):
     """Plot the fit of a transfer function."""
@@ -80,9 +85,11 @@ def transferfunction_plot(ax, transfer):
     show_model_parameters(ax, expected_model, pos=(0.6, 0.1), name="Expected")
     
     if "transferfunctionmodel/{0}".format(transfer.kind) in transfer.dataset.telemetry:
+        log.info("Using transfer function model fit from data.")
         transfer_model = transfer.dataset.telemetry["transferfunctionmodel/{0}".format(transfer.kind)]
         plot_mean_transfer_model(transfer_model, ax)
     else:
+        log.info("Generating transfer function model fit.")
         plot_fit_transfer_model(expected_model, freq, data_m, ax)
     
     ax.set_title('{0:s} ETF for s{1:04d} "{2:s}"'.format(transfer.kind.kind.capitalize(), transfer.dataset.sequence, transfer.dataset.instrument_data.loop))
