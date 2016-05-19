@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import datetime
+import warnings
 from astropy.io import fits
 
 __all__ = ['parse_values_from_header']
@@ -35,7 +36,9 @@ SHANEAO_HEADER_VALUES = [
     ('UPLINK_A', 'uplink_angle', float),
     ('UPLINK_B', 'uplink_bleed', float),
     ('UPLINK_G', 'uplink_gain', float),
-    ('UPLINK_E', 'uplink_enabled', bool)
+    ('UPLINK_E', 'uplink_enabled', bool),
+    ('HYBRIDCM', 'hybrid_matrix', str),
+    ("KALMAN_B", 'hybrid_bleed', float),
 ]
 
 def parse_values_from_header(filename_or_header):
@@ -49,9 +52,19 @@ def parse_values_from_header(filename_or_header):
         except ValueError:
             if header[key] != 'unknown':
                 raise ValueError("Can't parse {0}={1!r} as {2}".format(key, header[key], kind.__name__))
+        except KeyError:
+            warnings.warn("Can't find key {0} in header".format(key, header))
     
     datestring = header['DATE'] + "T" + header['TIME']
     args['created'] = datetime.datetime.strptime(datestring, '%Y-%m-%dT%H%M%S')
     args['date'] = args['created'].date()
+    
+    # Get additional keyword values which might have been missed.
+    for key in header.keys():
+        c = header.comments[key]
+        if len(c) and " " not in c:
+            if c not in args:
+                args[c] = header[key]
+    
     return args
     

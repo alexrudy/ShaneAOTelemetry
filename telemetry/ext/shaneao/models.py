@@ -34,6 +34,9 @@ class ShaneAOInfo(DatasetInfoBase):
     # ShaneAO Operational parameters
     mode = Column(String)
     substate = Column(String)
+    rtc = Column(String, doc='RTC Library in use.', default="rtc2")
+    rtc_so = Column(String, doc="Filename of the RTC library.", default="rtc2.so")
+    handler = Column(String, doc="Handler for the WFS camera", default="c_recon")
     
     wfs_rate = Column(Float)
     wfs_centroid = Column(String)
@@ -43,9 +46,14 @@ class ShaneAOInfo(DatasetInfoBase):
     
     alpha = Column(Float)
     loop = Column(String)
-    control_matrix = Column(String)
+    control_matrix = Column(String, doc="Control matrix name.")
+    ngs_matrix = Column(String, doc="NGS Control Matrix name.")
     reference_centroids = Column(String)
     frozen = Column(Boolean)
+    
+    hybrid_mode = Column(String)
+    hybrid_matrix = Column(String, doc="Hybrid matrix name.")
+    hybrid_bleed = Column(Float, doc="Hybrid mode bleed.")
     
     tweeter_enable = Column(Boolean)
     tweeter_gain = Column(Float)
@@ -72,8 +80,23 @@ class ShaneAOInfo(DatasetInfoBase):
     def __init__(self, **kwargs):
         kwargs.setdefault("woofer_gain", kwargs.get("gain"))
         kwargs.setdefault("tweeter_gain", kwargs.get("gain"))
-        super(ShaneAOMetadata, self).__init__(**kwargs)
         
+        if 'hybrid_matrix' in kwargs:
+            kwargs['reconstructor'] = "SMM"
+        if 'hybrid_bleed' in kwargs:
+            kwargs['reconstructor'] = "SMM-ID"
+        
+        super(ShaneAOInfo, self).__init__(**kwargs)
+        
+    @classmethod
+    def _from_mapping(cls, dataset, mapping):
+        """Set the dataset attributes appropriately."""
+        obj = super(ShaneAOInfo, cls)._from_mapping(dataset, mapping)
+        dataset.rate = obj.wfs_rate
+        dataset.gain = obj.tweeter_gain
+        dataset.bleed = obj.tweeter_bleed
+        dataset.closed = obj.loop.lower() == "closed"
+        return obj
     
     @hybrid_property
     def rate(self):
