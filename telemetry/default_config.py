@@ -5,7 +5,6 @@ CELERY_IMPORTS = ['telemetry.tasks',
     'telemetry.views.timeseries',
     'telemetry.ext.fourieranalysis.tasks']
 CELERY_RESULT_BACKEND = "rpc://"
-CELERYD_MAX_TASKS_PER_CHILD = 1
 CELERY_DISABLE_RATE_LIMITS = True
 CELERY_ROUTES = {'telemetry.views.timeseries.make_movie': {'queue': 'movies'}}
 
