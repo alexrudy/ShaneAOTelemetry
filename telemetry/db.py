@@ -163,6 +163,6 @@ def make(progress, component, recursive, force):
         click.echo("Prerequisites:")
         for i, prereq in enumerate(kind.rprerequisites):
             click.echo("{:d}) {:s}".format(i, prereq.h5path))
-        progress(group(rgenerate(dataset, kind) for dataset in query.all()))
+        progress(group(rgenerate(dataset, kind, force=force) for dataset in query.all()))
     
 
