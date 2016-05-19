@@ -31,13 +31,19 @@ from astropy.utils.console import ProgressBar
 import pstats
 import cProfile
 
-from telemetry.models.data import _parse_values_from_header
+from telemetry.ext.shaneao.header import parse_values_from_header
 
 log = logging.getLogger("upgrade")
 
+HYBRID_MODES = {}
+HYBRID_MODES['p'] = 'phase'
+HYBRID_MODES['f'] = 'fouriercoefficients'
+HYBRID_MODES['s'] = 'slopes'
+HYBRID_MODES['c'] = 'coefficients'
+
 def sequence_attributes(header):
     """Given a header, return the relevant sequencing attributes."""
-    return _parse_values_from_header(header)
+    return parse_values_from_header(header)
     
 class TelemetrySequence(object):
     """A sequence of identical telemetry dumps"""
@@ -176,7 +182,9 @@ class TelemetrySequence(object):
     def _split(self, data):
         """Split a data array."""
         sdata = {}
-        keys = "slopes tiptilt tweeter woofer filter uplink intermediate".split()
+        keys = self.sizes.keys()
+        keys.remove('sx')
+        keys.remove('sy')
         start = 0
         end = 0
         for key in keys:
@@ -210,8 +218,20 @@ def get_data_sizes(cseq):
     sizes['uplink'] = (2,) if "LGS" in cseq["mode"] else (0,)
     
     na_simple = sum(np.prod(s) for s in sizes.values())
-    if na_simple + 1024 == na:
-        sizes['intermediate'] = (32, 32)
+    if na > na_simple:
+        hybrid_mode = HYBRID_MODES[cseq.get("hybrid_mode", "p")]
+        if (na - na_simple) % 1024 != 0:
+            raise ValueError("We have a size problem... na={:d}, expected extra multiples of 1024".format(na))
+        n_intermediate = (na - na_simple) // 1024
+        if n_intermediate >= 1:
+            sizes[hybrid_mode] = (32, 32)
+        if n_intermediate == 3:
+            sizes['intermediate/{0}/input'.format(hybrid_mode)] = (32, 32)
+            sizes['intermediate/{0}/pseudoopenloop'.format(hybrid_mode)] = (32, 32)
+            
+    na_simple = sum(np.prod(s) for s in sizes.values())
+    if not na_simple == na:
+        raise ValueError("Did not account for some samples.")
     
     sizes['sx'] = (ns,)
     sizes['sy'] = (ns,)
@@ -267,8 +287,9 @@ def main():
         if not sequence.compare(attrs):
             cnum += 1
             sequence = TelemetrySequence(attrs)
-            sequence.setup(cnum, root, mode="w" if opt.force else "a")
-            log.debug("New sequence '{0}'".format(sequence.filename))
+            mode = "w" if opt.force else "a"
+            sequence.setup(cnum, root, mode=mode)
+            log.debug("New sequence('{0}', mode='{1}')".format(sequence.filename, mode))
         sequence.append_from_fits(filename, force=opt.force)
     
     if opt.profile:
