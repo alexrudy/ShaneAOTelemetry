@@ -121,14 +121,14 @@ class TransferFunction(DerivedTelemetry):
         length = data.shape[-1]
         weights = np.linspace(-1.0, 1.0, length)
         normed = data / data[...,weights >= (2.0/3.0)].mean(axis=-1)[...,None]
-        return normed.T.reshape(data.shape)
+        return normed
         
     def logaverage(self, data):
         """Log-average of the data."""
         normed = self.normalized(data)
         length = normed.shape[-1]
         normed = normed.reshape((-1, length))
-        return np.exp(np.log(normed).mean(axis=1))
+        return np.exp(np.log(normed).mean(axis=0))
         
     
 class TransferFunctionFit(DerivedTelemetry):
