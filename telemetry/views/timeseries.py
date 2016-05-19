@@ -7,8 +7,9 @@ import numpy as np
 from .core import save_ax_telemetry, construct_filename
 from ..application import app
 from ..models import Dataset
+from astropy.convolution import Gaussian1DKernel, convolve
 
-def timeseries(ax, telemetry, **kwargs):
+def timeseries(ax, telemetry, select=None, **kwargs):
     """Plot a telemetry timeseries."""
     data = telemetry.read()
     n_modes = np.prod(data.shape[1:])
@@ -19,7 +20,19 @@ def timeseries(ax, telemetry, **kwargs):
     
     data = data.transpose()
     data = data.reshape((data.shape[0], -1))
-    ax.plot(time, data, **kwargs)
+    
+    if select is not None:
+        data = data[:,select]
+    
+    lines = ax.plot(time, data, **kwargs)
+    
+    if select is not None:
+        sdata = np.apply_along_axis(lambda a: convolve(a, Gaussian1DKernel(stddev=50), boundary='extend'), 0, data)
+        kwargs['alpha'] = 1.0
+        for i, line in enumerate(lines):
+            kwargs['color'] = line.get_color()
+            ax.plot(time, sdata[:,i], **kwargs)
+        
     ax.set_xlabel("Time (s)")
     ax.set_ylabel("{0:s}".format(telemetry.kind.name))
     ax.set_title("Timeseries of {0:s} from {1:s}".format(
@@ -27,11 +40,12 @@ def timeseries(ax, telemetry, **kwargs):
     ax.set_xlim(np.min(time), np.max(time))
 
 @app.celery.task(bind=True)
-def make_timeseries(self, dataset_id, component):
+def make_timeseries(self, dataset_id, component, select=None, **kwargs):
     """Make a timeseries plot."""
     dataset = self.session.query(Dataset).get(dataset_id)
     telemetry = dataset.telemetry[component]
-    return save_ax_telemetry(telemetry, timeseries, category='timeseries')
+    kwargs.setdefault('category', 'timeseries')
+    return save_ax_telemetry(telemetry, timeseries, category=category, select=select, **kwargs)
     
 def valueshistogram(ax, telemetry, **kwargs):
     """Values histogram."""
@@ -50,11 +64,12 @@ def valueshistogram(ax, telemetry, **kwargs):
         
     
 @app.celery.task(bind=True)
-def make_histogram(self, dataset_id, component):
+def make_histogram(self, dataset_id, component, **kwargs):
     """Make a timeseries plot."""
     dataset = self.session.query(Dataset).get(dataset_id)
     telemetry = dataset.telemetry[component]
-    return save_ax_telemetry(telemetry, valueshistogram, category='histogram')
+    kwargs.setdefault('category', 'histogram')
+    return save_ax_telemetry(telemetry, valueshistogram, **kwargs)
     
     
 

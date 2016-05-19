@@ -17,15 +17,20 @@ def construct_filename(telemetry, category, folder='figures', ext='png'):
 
 def save_ax_telemetry(telemetry, func, *args, **kwargs):
     """Save a figure created by a function."""
+    category = kwargs.pop('category')
+    force = kwargs.pop('force', False)
+    filename = construct_filename(telemetry, category)
+    
+    if (os.path.exists(filename) and not force):
+        return filename
+    
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     fig = plt.figure()
     ax = fig.add_subplot(1,1,1)
-    category = kwargs.pop('category')
     
     func(ax, telemetry, *args, **kwargs)
-    filename = construct_filename(telemetry, category)
     fig.savefig(filename)
     return filename
     
