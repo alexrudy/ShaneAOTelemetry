@@ -105,7 +105,7 @@ class MatrixTransform(TelemetryGenerator):
         s.shape = (s.shape[0], s.shape[1], 1)
         return s
     
-    def _postprocess(self, coeffs):
+    def _postprocess(self, dataset, coeffs):
         """Postprocess the matrix multiply"""
         if self.OUTPUT_SHAPE is not None:
             coeffs.shape = self.OUTPUT_SHAPE
@@ -126,7 +126,7 @@ class MatrixTransform(TelemetryGenerator):
         m = self._get_matrix(dataset)
         s = self._get_source(dataset)
         coeffs = self._apply_matrix(s, m)
-        coeffs = self._postprocess(coeffs)
+        coeffs = self._postprocess(dataset, coeffs)
         with dataset.open() as g:
             if self.h5path in g:
                 del g[self.h5path]
@@ -163,10 +163,14 @@ class FourierCoefficients(MatrixTransform):
     MATRIX = "N"
     OUTPUT_SHAPE = (32, 32, -1)
     
-    def _postprocess(self, coeffs):
+    def _postprocess(self, dataset, coeffs):
         """Postprocess the data."""
-        coeffs = super(FourierCoefficients, self)._postprocess(coeffs)
-        return np.fft.fftshift(coeffs, axes=(0,1))
+        coeffs = super(FourierCoefficients, self)._postprocess(dataset, coeffs)
+        nc = int(dataset.instrument_data.mode.split('x',1)[0]) // 2
+        coeffs = np.fft.fftshift(coeffs, axes=(0,1))
+        if nc < (coeffs.shape[0] // 2):
+            coeffs = coeffs[nc+1:-nc,nc+1:-nc]
+        return coeffs
 
 class HEigenvalues(TelemetryGenerator):
     """The eiginvalues of the H matrix."""
