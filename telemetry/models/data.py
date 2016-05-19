@@ -246,13 +246,18 @@ class Dataset(Base):
     def title(self):
         """A matplotlib-suitable title string."""
         attrs = self.attributes()
-        attrs['gtext'] = "g={0:.3f}".format(self.gain) if self.closed else "open"
+        attrs['gtext'] = self.gaintext
         return "{0} {sequence:d} on {date:%Y-%m-%d} ({gtext:s}, b={bleed:.2f})".format(self.__class__.__name__, **attrs)
     
     @property
     def path(self):
         """Path root for this dataset."""
         return os.path.normpath(os.path.join(os.path.dirname(self.filename), ".."))
+        
+    @property
+    def gaintext(self):
+        """A textual description of the gain."""
+        return "g={0:.3f}".format(self.gain) if self.closed else "open"
         
 
 
