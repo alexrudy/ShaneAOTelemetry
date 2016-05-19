@@ -33,6 +33,7 @@ class DatasetQuery(ClickGroup):
             start = self.date
             end = (self.date + datetime.timedelta(days=1))
             q = q.filter(Dataset.date.between(start, end))
+        q = q.order_by(Dataset.created)
         return q
         
     @staticmethod
@@ -194,6 +195,6 @@ def make(datasetquery, progress, component, recursive, force):
         if recursive:
             progress(rgenerate(dataset, kind, force=force) for dataset in query.all())
         else:
-            progress(generate(dataset, kind, force=force) for dataset in query.all())
+            progress(generate.si(dataset.id, kind.id, force=force) for dataset in query.all())
     
 
