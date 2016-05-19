@@ -41,7 +41,7 @@ def periodogram_plot(ax, periodogram, **kwargs):
     data = periodogram.read()
     length = data.shape[-1]
     data = data.reshape((-1, length))
-    show_periodogram(ax, data.T, rate=periodogram.dataset.rate)
+    show_periodogram(ax, data.T, rate=periodogram.dataset.rate, color='k')
     ax.set_title('{0:s} Periodogram for s{1:04d} ({2:s})'.format(periodogram.kind.kind.capitalize(), periodogram.dataset.sequence, periodogram.dataset.gaintext))
     if np.min(data) < 1e-10:
         ax.set_ylim(np.min(data[data > 1e-10]), np.max(data))
@@ -95,6 +95,32 @@ def transferfunction_plot(ax, transfer):
     ax.set_title('{0:s} ETF for s{1:04d} "{2:s}"'.format(transfer.kind.kind.capitalize(), transfer.dataset.sequence, transfer.dataset.instrument_data.loop))
     ax.legend(loc='best')
     ax.text(0.0, 1.01, r"${:.0f}\mathrm{{Hz}}$ $\alpha={:.3f}$".format(transfer.dataset.instrument_data.wfs_rate, transfer.dataset.instrument_data.alpha), transform=ax.transAxes)
+
+@telemetry_plotting_task(category='transferfunctionmodel')
+def transferfunction_model_summary(ax, telemetry, **kwargs):
+    """Plot a model summary"""
+    model = telemetry.read()
+    parameter = kwargs.pop('parameter', 'gain')
+    data = getattr(model, parameter).value
+    if data.ndim == 2:
+        model_summary_2d(ax, data, telemetry, parameter.capitalize(), **kwargs)
+    else:
+        model_summary_1d(ax, data.flatten(), telemetry, parameter.capitalize(), **kwargs)
+    
+def model_summary_2d(ax, data, telemetry, name, **kwargs):
+    """2D summary of model data."""
+    kwargs.setdefault('cmap', 'viridis')
+    im = ax.imshow(data, **kwargs)
+    ax.figure.colorbar(im, ax=ax)
+    ax.grid(False)
+    ax.set_title("Fit {0} for {1} {2}".format(name, telemetry.kind.kind.capitalize(), telemetry.dataset.title()))
+    
+def model_summary_1d(ax, data, telemetry, name, **kwargs):
+    """Model summary in 1 dimension."""
+    mode_n = np.arange(data.shape[0])
+    image = ax.bar(mode_n, data, **kwargs)
+    ax.set_title("Fit {0} for {1} {2}".format(name, telemetry.kind.kind.capitalize(), telemetry.dataset.title()))
+    ax.set_xlim(0, data.shape[0] + 1)
 
 def show_model_parameters(ax, model, name="Model", pos=(0.1, 0.1)):
     """Show model parameters."""
