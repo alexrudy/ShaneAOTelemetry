@@ -247,7 +247,7 @@ class Dataset(Base):
         """A matplotlib-suitable title string."""
         attrs = self.attributes()
         attrs['gtext'] = self.gaintext
-        return "{0} {sequence:d} on {date:%Y-%m-%d} ({gtext:s}, b={bleed:.2f})".format(self.__class__.__name__, **attrs)
+        return "{0} {sequence:d} on {date:%Y-%m-%d} ({gtext:s}, b={bleed:.2f}) @{rate:.0f}Hz".format(self.__class__.__name__, **attrs)
     
     @property
     def path(self):
