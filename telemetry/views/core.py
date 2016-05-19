@@ -32,6 +32,11 @@ def save_ax_telemetry(telemetry, func, *args, **kwargs):
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     fig = plt.figure()
+    if matplotlib.rcParams['text.usetex']:
+        fpath = r"\verb+{0}+".format(telemetry.dataset.filename)
+    else:
+        fpath = telemetry.dataset.filename
+    fig.text(0,0, "{0}:{1}".format(telemetry.dataset.id,fpath), fontsize='small')
     ax = fig.add_subplot(1,1,1)
     
     func(ax, telemetry, *args, **kwargs)
