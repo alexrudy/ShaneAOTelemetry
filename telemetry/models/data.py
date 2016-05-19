@@ -201,6 +201,10 @@ class Dataset(Base):
                     self.telemetry[kind.h5path] = Telemetry(kind=kind, dataset=self)
             elif isinstance(g.get(key, None), h5py.Group):
                 keys.extend("/".join([key, subkey]) for subkey in g[key].keys())
+            else:
+                kind = TelemetryKind.require(session, key, key)
+                self.telemetry[kind.h5path] = Telemetry(kind=kind, dataset=self)
+                
         
         for telemetry in list(self.telemetry.values()):
             if telemetry.kind.h5path not in g:

@@ -96,6 +96,7 @@ class MatrixTransform(TelemetryGenerator):
     """A generic Matrix transformer."""
     MATRIX = None
     SOURCE = 'slopes'
+    OUTPUT_SHAPE = None
     
     def generate(self, dataset):
         """Generate data for a dataset."""
@@ -106,7 +107,11 @@ class MatrixTransform(TelemetryGenerator):
         vm = get_matrix(self.MATRIX)
         coeffs = vm * s
         coeffs = coeffs.view(np.ndarray)
+        if self.OUTPUT_SHAPE is not None:
+            coeffs.shape = self.OUTPUT_SHAPE
         with dataset.open() as g:
+            if self.h5path in g:
+                del g[self.h5path]
             g.create_dataset(self.h5path, data=coeffs)
         return super(MatrixTransform, self).generate(dataset)
 
@@ -127,7 +132,7 @@ class PseudoPhase(MatrixTransform):
         }
         
     MATRIX = "L"
-    
+    OUTPUT_SHAPE = (32, 32, -1)
 
 
 class FourierCoefficients(MatrixTransform):
@@ -138,6 +143,7 @@ class FourierCoefficients(MatrixTransform):
         }
         
     MATRIX = "N"
+    OUTPUT_SHAPE = (32, 32, -1)
 
 class HEigenvalues(TelemetryGenerator):
     """The eiginvalues of the H matrix."""

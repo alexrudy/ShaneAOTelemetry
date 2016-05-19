@@ -15,16 +15,20 @@ from .application import app
 from .models import Dataset, TelemetryKind, DatasetInfoBase, Instrument
 
 @app.celery.task(bind=True)
-def generate(self, dataset_id, telemetrykind_id):
+def generate(self, dataset_id, telemetrykind_id, force=False):
     """A generate task."""
     kind = self.session.query(TelemetryKind).filter_by(id=telemetrykind_id).one()
     dataset = self.session.query(Dataset).filter_by(id=dataset_id).one()
     logger.info("IDs {0} and {1}".format(telemetrykind_id, dataset_id))
     logger.info("Generating '{0}' from {1}".format(kind.h5path, dataset))
-    if kind.h5path not in dataset.telemetry:
+    if (kind.h5path in dataset.telemetry) and (force):
+        logger.debug("Removed old telemetry {0}".format(kind.h5path))
+        dataset.telemetry[kind.h5path].remove()
+    if (kind.h5path not in dataset.telemetry) or (force):
         telemetry = kind.generate(dataset)
         self.session.add(telemetry)
     self.session.commit()
+    return kind.h5path
 
 def read_path(path, force=False):
     """Read many directories."""
@@ -46,6 +50,7 @@ def read(self, filename, force=False):
         with h5py.File(filename, mode='r') as f:
             dataset = Dataset.from_h5py_group(self.session, f['telemetry'])
             metadata = DatasetInfoBase.from_mapping(dataset, f['telemetry'].attrs, instrument=instrument.metadata_type)
+            dataset.instrument = instrument
             self.session.add(metadata)
     dataset.update(self.session)
     self.session.add(dataset)
@@ -64,7 +69,7 @@ def refresh(self, dataset_id):
         self.session.commit()
     return dataset.id
     
-def rgenerate(dataset, telemetrykind):
+def rgenerate(dataset, telemetrykind, **kwargs):
     """Recursively generate using a celery chain."""
-    c = chain(generate.si(dataset.id, prereq.id) for prereq in telemetrykind.rprerequisites[1:])
+    c = chain(generate.si(dataset.id, prereq.id, **kwargs) for prereq in telemetrykind.rprerequisites[1:])
     return c

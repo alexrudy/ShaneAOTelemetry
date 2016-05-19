@@ -9,6 +9,7 @@ from sqlalchemy import Column, Integer, String, DateTime, Float, ForeignKey
 from sqlalchemy.orm import relationship, backref, object_session, validates
 from sqlalchemy.orm.collections import attribute_mapped_collection
 from sqlalchemy.sql import func
+from celery.utils.log import get_task_logger
 
 
 from .base import Base
@@ -29,12 +30,13 @@ class Telemetry(Base):
     @contextlib.contextmanager
     def open(self):
         """Open the dataset, as a context manager."""
+        log = get_task_logger(__name__)
         with self.dataset.open() as g:
             try:
                 yield g[self.kind.h5path]
             except KeyError as e:
-                print("Error opening {0} from {1} in {2}".format(self.kind.h5path, g.name, repr(self.dataset)))
-                print("File: {0}".format(self.dataset.filename))
+                log.error("Error opening {0} from {1} in {2}".format(self.kind.h5path, g.name, repr(self.dataset)))
+                log.error("File: {0}".format(self.dataset.filename))
                 raise
             
     def read(self):
@@ -45,7 +47,10 @@ class Telemetry(Base):
     def remove(self):
         """Remove telemetry"""
         with self.dataset.open() as g:
-            g.pop(self.kind.h5path, None)
+            try:
+                del g[self.kind.h5path]
+            except KeyError:
+                pass
         
     def __repr__(self):
         """A telemetry data item."""
