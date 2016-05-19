@@ -4,22 +4,32 @@ Plot a time-series object.
 """
 import os
 import numpy as np
-from .core import save_ax_telemetry, construct_filename
-from ..application import app
+from .core import telemetry_plotting_task
 from ..models import Dataset
+from ..application import app
 from astropy.convolution import Gaussian1DKernel, convolve
 
+def prepare_timeseries_data(telemetry, flatten=True, real=True):
+    """Prepare data for a timeseries, collapsing, etc."""
+    data = telemetry.read()
+    
+    data = data.transpose()
+    if flatten:
+        data = data.reshape((data.shape[0], -1))
+    
+    if real and np.iscomplexobj(data):
+        data = np.abs(data)
+    
+    time = np.arange(data.shape[0]) / telemetry.dataset.rate
+    return time, data
+
+@telemetry_plotting_task(category='timeseries')
 def timeseries(ax, telemetry, select=None, **kwargs):
     """Plot a telemetry timeseries."""
-    data = telemetry.read()
-    n_modes = np.prod(data.shape[1:])
-    time = np.arange(data.shape[-1]) / telemetry.dataset.rate
+    time, data = prepare_timeseries_data(telemetry)
     
     kwargs.setdefault('color', 'k')
     kwargs.setdefault('alpha', 0.01)
-    
-    data = data.transpose()
-    data = data.reshape((data.shape[0], -1))
     
     if select is not None:
         data = data[:,select]
@@ -38,40 +48,45 @@ def timeseries(ax, telemetry, select=None, **kwargs):
     ax.set_title("Timeseries of {0:s} from {1:s}".format(
         telemetry.kind.name, telemetry.dataset.title()))
     ax.set_xlim(np.min(time), np.max(time))
-
-@app.celery.task(bind=True)
-def make_timeseries(self, dataset_id, component, select=None, **kwargs):
-    """Make a timeseries plot."""
-    dataset = self.session.query(Dataset).get(dataset_id)
-    telemetry = dataset.telemetry[component]
-    kwargs.setdefault('category', 'timeseries')
-    return save_ax_telemetry(telemetry, timeseries, category=category, select=select, **kwargs)
     
-def valueshistogram(ax, telemetry, **kwargs):
+@telemetry_plotting_task(category='mean')
+def mean(ax, telemetry, **kwargs):
+    """Make an average view."""
+    time, data = prepare_timeseries_data(telemetry, flatten=False)
+    data = data.mean(axis=0)
+    if data.ndim == 2:
+        mean_2d_view(ax, data, telemetry, **kwargs)
+    else:
+        data = data.flatten()
+        mean_1d_view(ax, data, telemetry, **kwargs)
+
+
+def mean_2d_view(ax, data, telemetry, **kwargs):
+    """2D view of mean data throughout a timeseries."""
+    image = ax.imshow(data, **kwargs)
+    ax.figure.colorbar(image, ax=ax)
+    ax.set_title("Timeseries of {0:s} from {1:s}".format(
+        telemetry.kind.name, telemetry.dataset.title()))
+
+@telemetry_plotting_task(category='histogram')
+def histogram(ax, telemetry, **kwargs):
     """Values histogram."""
-    data = telemetry.read()
-    n_modes = np.prod(data.shape[1:])
-    time = np.arange(data.shape[-1]) / telemetry.dataset.rate
+    time, data = prepare_timeseries_data(telemetry)
     
     kwargs.setdefault('color', 'k')
     kwargs.setdefault('bins', 100)
     
-    ax.hist(data.flatten(), **kwargs)
+    filterzero = kwargs.pop('filterzero', "fouriercoeffs" in telemetry.kind.h5path)
+    data = data.flatten()
+    if filterzero:
+        data = data[data != 0.0]
+    
+    ax.hist(data, **kwargs)
     ax.set_ylabel("N")
     ax.set_xlabel("{0:s}".format(telemetry.kind.name))
     ax.set_title("Histogram of {0:s} from {1:s}".format(
         telemetry.kind.name, telemetry.dataset.title()))
         
-    
-@app.celery.task(bind=True)
-def make_histogram(self, dataset_id, component, **kwargs):
-    """Make a timeseries plot."""
-    dataset = self.session.query(Dataset).get(dataset_id)
-    telemetry = dataset.telemetry[component]
-    kwargs.setdefault('category', 'histogram')
-    return save_ax_telemetry(telemetry, valueshistogram, **kwargs)
-    
-    
 
 class PhaseMovieView(object):
     """A view for a phase movie, the main phase view area, attached to a single axes object."""

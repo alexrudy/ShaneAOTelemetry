@@ -11,12 +11,42 @@ import click
 
 from celery import group
 
-from .cli import cli, celery_progress, ClickError
-from .tasks import read as read_task, refresh as refresh_task, rgenerate
+from .cli import cli, CeleryProgressGroup, ClickError, ClickGroup
+from .tasks import read as read_task, refresh as refresh_task, rgenerate, generate
 from .application import app
 from .models import Base, Dataset, TelemetryKind, TelemetryPrerequisite
 from .models import (SlopeVectorX, SlopeVectorY, HCoefficients, 
     PseudoPhase, FourierCoefficients, HEigenvalues)
+
+class DatasetQuery(ClickGroup):
+    """A query of datasets, filtered by command line arguments."""
+    
+    argument = "datasetquery"
+    
+    def __init__(self, date=None):
+        super(DatasetQuery, self).__init__(date=date)
+        
+    def __call__(self, session):
+        """Produce a query from the session."""
+        q = session.query(Dataset)
+        if self.date is not None:
+            start = self.date
+            end = (self.date + datetime.timedelta(days=1))
+            q = q.filter(Dataset.date.between(start, end))
+        return q
+        
+    @staticmethod
+    def validate_date(value):
+        """Validate a date."""
+        return datetime.datetime.strptime(value, "%Y-%m-%d").date()
+    
+    @classmethod
+    def decorate(cls, func):
+        """docstring for decorate"""
+        func = cls.option("--date", default=None, type=cls.validate_date,
+            name="date", help="Limit the query to a specific date.")(func)
+        func = super(DatasetQuery, cls).decorate(func)
+        return func
 
 def add_prerequisite(session, source, prerequisite):
     """Add a prerequisite."""
@@ -80,17 +110,12 @@ def initdb(echo):
     
 
 @cli.command()
-@click.option("--date", help="Limit the table to a single date.", default=None)
-def show(date):
+@DatasetQuery.decorate
+def show(datasetquery):
     """show datasets"""
     from astropy.table import Table
     with app.app_context():
-        query = app.session.query(Dataset).order_by(Dataset.created)
-        if date is not None:
-            s_date = datetime.datetime.strptime(date, "%Y-%m-%d").date()
-            e_date = s_date + datetime.timedelta(days=1)
-            click.echo("Showing data created on {0}".format(s_date))
-            query = query.filter(Dataset.date.between(s_date,e_date))
+        query = datasetquery(app.session).order_by(Dataset.created)
         if query.count() == 0:
             raise ClickError("No records found.")
         keys = ["created", "sequence", "rate", "closed", "gain", "bleed"]
@@ -98,7 +123,7 @@ def show(date):
         t[keys].more()
 
 @cli.command()
-@celery_progress
+@CeleryProgressGroup.decorate
 @click.option("--force/--no-force", help="Force the read.", default=False)
 @click.argument("paths", nargs=-1, type=click.Path(exists=True))
 def read(progress, paths, force):
@@ -114,31 +139,34 @@ def read(progress, paths, force):
     
 
 @cli.command()
-@celery_progress
-def refresh(progress):
+@DatasetQuery.decorate
+@CeleryProgressGroup.decorate
+def refresh(datasetquery, progress):
     """Refresh datasets."""
     with app.app_context():
-        query = app.session.query(Dataset).order_by(Dataset.created)
+        query = datasetquery(app.session).order_by(Dataset.created)
         click.echo("Refreshing {:d} datasets.".format(query.count()))
         progress(refresh_task.si(dataset.id) for dataset in query.all())
         
 @cli.command()
-def delete():
+@DatasetQuery.decorate
+def delete(datasetquery):
     """Delete all the datasets"""
     with app.app_context():
         if click.confirm('Delete all the datasets?'):
-            query = app.session.query(Dataset)
+            query = datasetquery(app.session)
             query.delete(synchronize_session='fetch')
             app.session.commit()
         
     
 
 @cli.command()
-@celery_progress
+@DatasetQuery.decorate
+@CeleryProgressGroup.decorate
 @click.argument("component", type=str)
 @click.option("--recursive/--no-recursive", help="Recursively generate data.", default=False)
 @click.option("--force/--no-force", help="Force regenerate.", default=False)
-def make(progress, component, recursive, force):
+def make(datasetquery, progress, component, recursive, force):
     """Make a given component."""
     with app.app_context():
         kind = TelemetryKind.require(app.session, component)
@@ -148,11 +176,11 @@ def make(progress, component, recursive, force):
         
         done = app.session.query(Dataset.id).join(Dataset.kinds).filter(TelemetryKind.h5path == prerequisties[-1].h5path)
         if recursive:
-            query = app.session.query(Dataset).join(Dataset.kinds).filter(TelemetryKind.h5path == prerequisties[0].h5path)
+            query = datasetquery(app.session).join(Dataset.kinds).filter(TelemetryKind.h5path == prerequisties[0].h5path)
             for p in prerequisties:
                 query = p.filter(query)
         else:
-            query = app.session.query(Dataset).join(Dataset.kinds).filter(TelemetryKind.h5path == prerequisties[-2].h5path)
+            query = datasetquery(app.session).join(Dataset.kinds).filter(TelemetryKind.h5path == prerequisties[-2].h5path)
             query = kind.filter(query)
         
         if not force:
@@ -163,6 +191,9 @@ def make(progress, component, recursive, force):
         click.echo("Prerequisites:")
         for i, prereq in enumerate(kind.rprerequisites):
             click.echo("{:d}) {:s}".format(i, prereq.h5path))
-        progress(group(rgenerate(dataset, kind, force=force) for dataset in query.all()))
+        if recursive:
+            progress(rgenerate(dataset, kind, force=force) for dataset in query.all())
+        else:
+            progress(generate(dataset, kind, force=force) for dataset in query.all())
     
 

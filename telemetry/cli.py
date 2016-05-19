@@ -14,7 +14,7 @@ from celery import group
 from telemetry.models import Dataset, TelemetryKind
 from sqlalchemy.sql import between
 from astropy.utils.console import ProgressBar
-
+from functools import update_wrapper
 from .application import app
 
 __all__ = ['progress', 'cli', 'ClickError']
@@ -31,7 +31,7 @@ def progress(resultset):
     
 @click.group()
 def cli():
-    click.echo("Connected to {0}".format(app.config['SQLALCHEMY_DATABASE_URI']))
+    click.secho("Connected to {0}".format(app.config['SQLALCHEMY_DATABASE_URI']), fg='blue')
     
 @cli.command()
 def shell():
@@ -44,7 +44,14 @@ def shell():
         
     
 
-
+def setup_context(f):
+    """Set up the context so it can be used to pass argument groups."""
+    @click.pass_context
+    def new_func(ctx, *args, **kwargs):
+        obj = ctx.ensure_object(dict)
+        kwargs.update(obj)
+        return ctx.invoke(f, **kwargs)
+    return update_wrapper(new_func, f)
 
 class ClickError(click.ClickException):
     """Raised with an error from the celery group."""
@@ -54,8 +61,12 @@ class ClickError(click.ClickException):
         click.echo(str(self))
         
     
+
 class ClickGroup(object):
     """A click group class"""
+    
+    argument = "group"
+    
     def __init__(self, **kwargs):
         super(ClickGroup, self).__init__()
         self.__dict__.update(kwargs)
@@ -64,8 +75,10 @@ class ClickGroup(object):
     def callback(cls, name):
         """Get an option callback."""
         def callback(ctx, param, value):
-            state = ctx.ensure_object(cls)
-            setattr(state, name, value)
+            state = ctx.ensure_object(dict)
+            if cls.argument not in state:
+                state[cls.argument] = cls()
+            setattr(state[cls.argument], name, value)
             return value
         return callback
         
@@ -88,13 +101,15 @@ class ClickGroup(object):
     @classmethod
     def decorate(cls, func):
         """Decorate a function."""
-        pass_progress_group = click.make_pass_decorator(cls, ensure=True)
-        return pass_progress_group(func)
+        return setup_context(func)
     
 class CeleryProgressGroup(ClickGroup):
     """A state management for celery progress."""
-    def __init__(self, try_one=False, wait=True, limit=None, local=False):
-        super(CeleryProgressGroup, self).__init__(try_one=try_one, wait=wait, limit=limit, local=False)
+    
+    argument = 'progress'
+    
+    def __init__(self, try_one=False, wait=True, limit=None, local=False, try_local=False):
+        super(CeleryProgressGroup, self).__init__(try_one=try_one, wait=wait, limit=limit, local=False, try_local=try_local)
         
     def __call__(self, iterator):
         """Call the progress."""
@@ -102,19 +117,27 @@ class CeleryProgressGroup(ClickGroup):
             click.echo("Limiting to {0:d} items.".format(self.limit))
             iterator = itertools.islice(iterator, 0, self.limit)
         iterator = iter(iterator)
-        if self.try_one:
+        if self.try_one or self.try_local:
             click.echo("Trying a single task:")
             try:
                 task = next(iterator)
             except StopIteration:
                 raise ClickError("No tasks were available.")
             else:
-                if self.local:
-                    result = task()
+                click.echo(">>> {0!r}".format(task))
+                try:
+                    if self.local or self.try_local:
+                        result = task()
+                    else:
+                        result = task.delay().get()
+                except Exception:
+                    click.secho("Failure!", fg='red')
+                    raise
                 else:
-                    result = task.delay().get()
-                click.echo("Success! {0}".format(result))
-        
+                    click.echo("{0!r}".format(result))
+                    click.secho("Success!", fg="green")
+        if self.try_local:
+            return
         g = group(iterator)
         if self.local:
             click.echo("Running tasks locally.".format(self.limit))
@@ -137,19 +160,17 @@ class CeleryProgressGroup(ClickGroup):
     @classmethod
     def decorate(cls, func):
         """docstring for decorate"""
-        func = cls.option("--try-one/--no-try", default=False,
-            name="try_one", help="Try a single value")(func)
+        func = cls.option("--try-one/--no-try-one", default=False,
+            name="try_one", help="Try a single task")(func)
         func = cls.option("--limit", type=int, default=None,
             name="limit", help="Limit the number of tasks to process.")(func)
         func = cls.option("--wait/--no-wait", default=True,
             name="wait", help="Wait for tasks to finish.")(func)
         func = cls.option("--local/--remote", default=False, name="local",
             help="Run tasks locally.")(func)
+        func = cls.option("--try-local/--no-try-local", default=False, name="try_local", help="Try a single task, locally.")(func)
         func = super(CeleryProgressGroup, cls).decorate(func)
         return func
 
-def celery_progress(func):
-    """A decorator to add celery progress options to a function."""
-    return CeleryProgressGroup.decorate(func)
 
 
