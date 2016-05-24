@@ -7,6 +7,7 @@ from telemetry.application import app
 from telemetry.models import Dataset, TelemetryKind, Telemetry
 from telemetry.views.cli import plotting_command
 from telemetry import tasks as base_tasks
+from . import tasks
 from .views import periodogram_plot, transferfunction_plot, transferfunction_model_summary
 
 @cli.group()
