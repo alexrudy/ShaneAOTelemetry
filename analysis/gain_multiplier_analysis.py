@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
 An analysis of the gain multiplier effect.
@@ -41,17 +40,19 @@ def fit_and_plot_gains(gains, label, label_ypos, color, show_data=True, effectiv
 
 def _make_row(tf, tfm, boost_factor=1.0):
     """Make a table row."""
-    row = tf.sequence.get_sequence_attributes()
+    tf.dataset.instrument_data.control_matrix
+    row = tf.dataset.instrument_data.attributes()
     row['CM'] = row.pop('control_matrix')
-    row['date'] = row['date'].date()
-    row['gain'] = tf.sequence.gain
-    row['effective gain'] = tf.sequence.gain * boost_factor
+    row['date'] = tf.dataset.date
+    row['gain'] = tf.dataset.gain
+    row['rate'] = tf.dataset.rate
+    row['bleed'] = tf.dataset.bleed
+    row['effective gain'] = tf.dataset.gain * boost_factor
     row['boost'] = boost_factor
-    row['fit gain'] = tfm.gain.mean()
-    row['fit sigma'] = tfm.gain.std()
-    row['seq'] = "{:d}-{:d}".format(min(tf.sequence.sequence_numbers()), max(tf.sequence.sequence_numbers()))
-    row['id'] = tf.sequence.id
-    row['kind'] = tf.kind
+    row['fit gain'] = tfm.gain.value.mean()
+    row['fit sigma'] = tfm.gain.value.std()
+    row['id'] = tf.dataset.id
+    row['kind'] = tf.kind.h5path
     return row
     
 def plot_results(data, output_directory, filename_root, title):
@@ -97,11 +98,10 @@ def plot_results(data, output_directory, filename_root, title):
     
 def gather_query(query, boost_factor, elimintate):
     """For a query on TransferFunction, gather relevant rows."""
-    for tf in query.all():
-        tfm = tf.sequence.transferfunctionmodels[tf.kind]
-        eliminated = any([ seq in elimintate for seq in tf.sequence.sequence_numbers() ])
-        if not (tfm.gain == 0.0).all() and len(tf.sequence.datasets) >= 3 and not eliminated:
-            yield _make_row(tf, tfm, boost_factor=boost_factor)
+    for telemetry in query.all():
+        model = telemetry.read()
+        if not (model.gain == 0.0).all():
+            yield _make_row(telemetry, model, boost_factor=boost_factor)
     
 
 def generate_table(query_base, eliminate):
@@ -121,33 +121,3 @@ def analyze_table(data, output_directory):
         filename_root = "gain-trends-{:.0f}Hz".format(rate)
         title = "ShaneAO at {:.0f}Hz".format(rate)
         plot_results(data[data['rate'] == rate], output_directory, filename_root, title)
-
-def main():
-    """Main function for parsing."""
-    parser = argparse.ArgumentParser()
-    opt = parser.parse_args()
-    
-    # Handle imports
-    import matplotlib
-    matplotlib.use("Agg")
-    matplotlib.rcParams['text.usetex'] = False
-    from telemetry import connect
-    from telemetry.models import Sequence, TransferFunction
-    Session = connect()
-    session = Session()
-    
-    GAIN_MULTIPLIER = 4.0
-    ELIMINTATE = [396, 405, 366]
-    root = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
-    OUTPUT_DIRECTORY = os.path.join(root, "gain_trends", "2016-03-23")
-    
-    query_base = session.query(TransferFunction).filter(TransferFunction.kind == "hcoefficients").join(Sequence)
-    query_base = query_base.filter(Sequence.date == datetime.datetime(2016, 03, 24, 0, 0, 0))
-    data = generate_table(query_base, ELIMINTATE)
-    analyze_table(data, OUTPUT_DIRECTORY)
-    data['fit gain'].format = "{:.3f}"
-    data['fit sigma'].format = "{:.3f}"
-    data.write(os.path.join(OUTPUT_DIRECTORY,"gain_trends.txt"), format='ascii.fixed_width')
-    
-if __name__ == '__main__':
-    main()
