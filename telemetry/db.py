@@ -26,14 +26,15 @@ class DatasetQuery(ClickGroup):
     def __init__(self, date=None):
         super(DatasetQuery, self).__init__(date=date)
         
-    def __call__(self, session):
+    def __call__(self, session, order=True):
         """Produce a query from the session."""
         q = session.query(Dataset)
         if self.date is not None:
             start = self.date
             end = (self.date + datetime.timedelta(days=1))
             q = q.filter(Dataset.date.between(start, end))
-        q = q.order_by(Dataset.created)
+        if order:
+            q = q.order_by(Dataset.created)
         return q
         
     @staticmethod
@@ -131,8 +132,8 @@ def read(progress, paths, force):
     """read data into the database."""
     with app.app_context():
         if not paths:
-            paths = [os.path.join(app.config['TELEMETRY_ROOTDIRECTORY'], "**", "**", "raw")]
-        print(paths)
+            paths = [os.path.join(app.config['TELEMETRY_ROOTDIRECTORY'], "*", "*", "data")]
+        print(",".join("{0}".format(path) for path in paths))
         paths = (os.path.expanduser(os.path.join(os.path.splitext(path)[0], '*.hdf5')) for path in paths)
         paths = itertools.chain.from_iterable(glob.iglob(path) for path in paths)
         progress(read_task.si(filename, force=force) for filename in paths)
@@ -155,7 +156,7 @@ def delete(datasetquery):
     """Delete all the datasets"""
     with app.app_context():
         if click.confirm('Delete all the datasets?'):
-            query = datasetquery(app.session)
+            query = datasetquery(app.session, order=False)
             query.delete(synchronize_session='fetch')
             app.session.commit()
         
