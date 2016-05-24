@@ -5,7 +5,7 @@ from telemetry.fixer import get_index, update
 from astropy.utils.console import ProgressBar
 
 DEFAULT_MATRIX = "controlMatrix_16x.fits"
-BOOSTED_MATRIX = "controlMatrix_16x.incgain.RUDY.fits"
+BOOSTED_MATRIX = "controlMatrix_16x.incgain.250Hz.fits"
 
 CM_RANGES = [
     (0, 22, DEFAULT_MATRIX),
