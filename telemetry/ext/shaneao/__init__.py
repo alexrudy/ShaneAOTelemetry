@@ -9,6 +9,7 @@ def setup(app):
     
     # Connect the models.
     from . import models
+    from . import cli
     
     # Connect the DB initializer.
     # db.INITIALIZERS.add(models.initdb)
