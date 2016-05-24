@@ -61,10 +61,10 @@ class Periodogram(DerivedTelemetry):
 class TransferFunctionPair(Base):
     """A pair of transfer function items."""
     
-    loop_open_id = Column(Integer, ForeignKey("dataset.id"))
+    loop_open_id = Column(Integer, ForeignKey("dataset.id", ondelete='CASCADE'))
     loop_open = relationship("Dataset", foreign_keys="TransferFunctionPair.loop_open_id", backref=backref('_ol_pairs', cascade='all, delete-orphan'))
     
-    loop_closed_id = Column(Integer, ForeignKey("dataset.id"))
+    loop_closed_id = Column(Integer, ForeignKey("dataset.id", ondelete='CASCADE'))
     loop_closed = relationship("Dataset", foreign_keys="TransferFunctionPair.loop_closed_id", backref=backref('pairs', cascade='all, delete-orphan'))
     
     @property
