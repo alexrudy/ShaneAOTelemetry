@@ -23,7 +23,7 @@ def show_periodogram(ax, periodogram, rate=1.0, **kwargs):
         kwargs.setdefault('alpha', 0.1)
         periodogram = periodogram.reshape(periodogram.shape[0], -1)
         
-    kwargs.setdefault('color', 'b')
+    # kwargs.setdefault('color', 'b')
     
     length = periodogram.shape[0]
     freq = frequencies(length, rate)
@@ -42,26 +42,50 @@ def periodogram_plot(ax, periodogram, **kwargs):
     length = data.shape[-1]
     data = data.reshape((-1, length))
     show_periodogram(ax, data.T, rate=periodogram.dataset.rate, color='k')
-    ax.set_title('{0:s} Periodogram for s{1:04d} ({2:s})'.format(periodogram.kind.kind.capitalize(), periodogram.dataset.sequence, periodogram.dataset.gaintext))
+    ax.set_title('{0:s} Periodogram for {1:s}'.format(periodogram.kind.kind.capitalize(), periodogram.dataset.title()))
     if np.min(data) < 1e-10:
         ax.set_ylim(np.min(data[data > 1e-10]), np.max(data))
     
-def plot_mean_transfer_model(transfer_model, ax):
+@telemetry_plotting_task(category='powerspectrum')
+def powerspectrum_plot(ax, periodogram, **kwargs):
+    """Plot the power-spectrum on a log-log scale."""
+    data = periodogram.read()
+    length = data.shape[-1]
+    data = data.reshape((-1, length))
+    show_periodogram(ax, data.T, rate=periodogram.dataset.rate, color='k', alpha=0.05)
+    datam = data.mean(axis=0)
+    show_periodogram(ax, datam, rate=periodogram.dataset.rate, color='k', label=r"$\mathrm{{{}}}$".format(periodogram.kind.kind.capitalize()))
+    show_periodogram(ax, datam, rate=periodogram.dataset.rate, label=r"$|\mathrm{{{}}}|$".format(periodogram.kind.kind.capitalize()))
+    freq = frequencies(length, u.Quantity(periodogram.dataset.rate, u.Hz))
+    peg_idx = np.argmin(np.abs(freq - 5.0 * u.Hz))
+    peg_freq = freq[peg_idx]
+    peg_amp = datam[peg_idx]
+    p_denom = 5.0
+    ax.plot(freq, peg_amp * (freq.value / peg_freq.value) ** (-p_denom/3.0), label=r"$\propto f^{{-{:.0f}/3}}$".format(p_denom))
+    
+    ax.legend(loc='best')
+    ax.set_title('{0:s} Power Spectrum for {1:s}'.format(periodogram.kind.kind.capitalize(), periodogram.dataset.title()))
+    ax.set_xscale('log')
+    ax.set_xlim(periodogram.dataset.rate / (2.0 * length), periodogram.dataset.rate / 2.0)
+    if np.min(data) < 1e-10:
+        ax.set_ylim(np.min(data[data > 1e-10]), np.max(data))
+    
+def plot_mean_transfer_model(transfer_model, ax, length):
     """Plot the fit of a transfer function."""
     model = transfer_model.read()
     fit_model = TransferFunctionModel(tau=model.tau.value.mean(), 
         ln_c=model.ln_c.value.mean(), gain=model.gain.value.mean(), 
         rate=model.rate.value.mean())
-    freq = frequencies(length, model.rate.mean())
+    freq = frequencies(length, model.rate.value.mean())
     data_f = fit_model(freq)
-    show_periodogram(ax, data_f, rate=transfer.dataset.instrument_data.wfs_rate, color='g', label='Fit Model')
+    show_periodogram(ax, data_f, rate=transfer_model.dataset.rate, color='g', label='Fit Model')
     show_model_parameters(ax, fit_model, pos=(0.8, 0.1))
 
 def plot_fit_transfer_model(model, freq, data, ax):
     """From a transfer function, """
     fit_model = apply_LevMarLSQFitter(model, freq, data)
     data_f = fit_model(freq)
-    show_periodogram(ax, data_f, rate=model.rate, color='g', label='Fit Model')
+    show_periodogram(ax, data_f, rate=model.rate, label='Fit Model')
     show_model_parameters(ax, fit_model, pos=(0.8, 0.1))
 
 @telemetry_plotting_task(category='transferfunction')
@@ -79,20 +103,20 @@ def transferfunction_plot(ax, transfer):
     expected_model = TransferFunctionModel.expected(transfer.dataset)
     data_e = expected_model(freq)
     
-    show_periodogram(ax, data_p.T, rate=transfer.dataset.instrument_data.wfs_rate, color='b', alpha=alpha)
-    show_periodogram(ax, data_m.T, rate=transfer.dataset.instrument_data.wfs_rate, color='b', label="Data")
-    show_periodogram(ax, data_e, rate=transfer.dataset.instrument_data.wfs_rate, color='r', label='Expected Model')
+    lines = show_periodogram(ax, data_p.T, rate=transfer.dataset.instrument_data.wfs_rate, alpha=alpha)
+    show_periodogram(ax, data_m.T, rate=transfer.dataset.instrument_data.wfs_rate, color=lines[0].get_color(), label="Data")
+    show_periodogram(ax, data_e, rate=transfer.dataset.instrument_data.wfs_rate, label='Expected Model')
     show_model_parameters(ax, expected_model, pos=(0.6, 0.1), name="Expected")
     
-    if "transferfunctionmodel/{0}".format(transfer.kind) in transfer.dataset.telemetry:
+    if "transferfunctionmodel/{0}".format(transfer.kind.kind) in transfer.dataset.telemetry:
         log.info("Using transfer function model fit from data.")
-        transfer_model = transfer.dataset.telemetry["transferfunctionmodel/{0}".format(transfer.kind)]
-        plot_mean_transfer_model(transfer_model, ax)
+        transfer_model = transfer.dataset.telemetry["transferfunctionmodel/{0}".format(transfer.kind.kind)]
+        plot_mean_transfer_model(transfer_model, ax, length=length)
     else:
         log.info("Generating transfer function model fit.")
         plot_fit_transfer_model(expected_model, freq, data_m, ax)
     
-    ax.set_title('{0:s} ETF for s{1:04d} "{2:s}"'.format(transfer.kind.kind.capitalize(), transfer.dataset.sequence, transfer.dataset.instrument_data.loop))
+    ax.set_title('{0:s} ETF for {1  :s}'.format(transfer.kind.kind.capitalize(), transfer.dataset.title()))
     ax.legend(loc='best')
     ax.text(0.0, 1.01, r"${:.0f}\mathrm{{Hz}}$ $\alpha={:.3f}$".format(transfer.dataset.instrument_data.wfs_rate, transfer.dataset.instrument_data.alpha), transform=ax.transAxes)
 

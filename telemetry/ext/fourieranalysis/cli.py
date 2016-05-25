@@ -8,7 +8,7 @@ from telemetry.models import Dataset, TelemetryKind, Telemetry
 from telemetry.views.cli import plotting_command
 from telemetry import tasks as base_tasks
 from . import tasks
-from .views import periodogram_plot, transferfunction_plot, transferfunction_model_summary
+from .views import periodogram_plot, transferfunction_plot, transferfunction_model_summary, powerspectrum_plot
 
 @cli.group()
 def fa():
@@ -71,5 +71,6 @@ def plot():
     pass
 
 pgplot = plotting_command('periodogram', periodogram_plot, group=plot, component_name_transform="periodogram/{0}".format)
+psplot = plotting_command('ps', powerspectrum_plot, group=plot, component_name_transform="periodogram/{0}".format)
 tfplot = plotting_command('tf', transferfunction_plot, group=plot, component_name_transform="transferfunction/{0}".format)
 tffitplot = plotting_command('tffit', transferfunction_model_summary, group=plot, component_name_transform="transferfunctionmodel/{0}".format)
