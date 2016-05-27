@@ -10,6 +10,8 @@ import argparse
 import datetime
 import time
 import itertools
+import lumberjack
+import logging
 from celery import group
 from telemetry.models import Dataset, TelemetryKind
 from sqlalchemy.sql import between
@@ -31,6 +33,7 @@ def progress(resultset):
     
 @click.group()
 def cli():
+    lumberjack.setup_logging(mode='stream', level=logging.INFO)
     click.secho("Connected to {0}".format(app.config['SQLALCHEMY_DATABASE_URI']), fg='blue')
     
 @cli.command()
