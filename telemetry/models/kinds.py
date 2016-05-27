@@ -7,9 +7,16 @@ from .case import TelemetryKind, Telemetry
 from sqlalchemy.orm import validates
 from telemetry.algorithms.coefficients import get_cm_projector, get_matrix
 import numpy as np
+import resource
+from celery.utils.log import get_task_logger
 
 __all__ = ['TelemetryGenerator', 'SlopeVectorX', 'SlopeVectorY', 
     'HCoefficients', 'HEigenvalues', 'PseudoPhase', 'FourierCoefficients']
+
+def memory():
+    """Get memory usage as a string."""
+    from astropy.utils.console import human_file_size
+    return human_file_size(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
 
 class TelemetryGenerator(TelemetryKind):
     
@@ -100,10 +107,7 @@ class MatrixTransform(TelemetryGenerator):
     
     def _get_source(self, dataset):
         """Get the source from a dataset."""
-        s = dataset.telemetry[self.SOURCE].read()
-        s = np.matrix(s)
-        s.shape = (s.shape[0], s.shape[1], 1)
-        return s
+        return dataset.telemetry[self.SOURCE].read()
     
     def _postprocess(self, dataset, coeffs):
         """Postprocess the matrix multiply"""
@@ -117,7 +121,8 @@ class MatrixTransform(TelemetryGenerator):
     
     def _apply_matrix(self, s, m):
         """Apply the matrix."""
-        coeffs = m * s
+        log = get_task_logger(__name__)
+        coeffs = m.dot(s)
         coeffs = coeffs.view(np.ndarray)
         return coeffs
     
@@ -126,11 +131,13 @@ class MatrixTransform(TelemetryGenerator):
         m = self._get_matrix(dataset)
         s = self._get_source(dataset)
         coeffs = self._apply_matrix(s, m)
+        del s
         coeffs = self._postprocess(dataset, coeffs)
         with dataset.open() as g:
             if self.h5path in g:
                 del g[self.h5path]
             g.create_dataset(self.h5path, data=coeffs)
+        del coeffs
         return super(MatrixTransform, self).generate(dataset)
 
 class HCoefficients(MatrixTransform):
@@ -167,9 +174,13 @@ class FourierCoefficients(MatrixTransform):
         """Postprocess the data."""
         coeffs = super(FourierCoefficients, self)._postprocess(dataset, coeffs)
         nc = int(dataset.instrument_data.mode.split('x',1)[0]) // 2
-        coeffs = np.fft.fftshift(coeffs, axes=(0,1))
+        
+        s = np.fft.fftshift(coeffs, axes=(0,1))
+        coeffs[...] = s
+        del s
+        
         if nc < (coeffs.shape[0] // 2):
-            coeffs = coeffs[nc+1:-nc,nc+1:-nc]
+            coeffs = coeffs[nc+1:-nc,nc+1:-nc].copy()
         return coeffs
 
 class HEigenvalues(TelemetryGenerator):
