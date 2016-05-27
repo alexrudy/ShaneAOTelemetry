@@ -23,12 +23,16 @@ class DatasetQuery(ClickGroup):
     
     argument = "datasetquery"
     
-    def __init__(self, date=None):
-        super(DatasetQuery, self).__init__(date=date)
+    def __init__(self, date=None, dataset_id=None):
+        super(DatasetQuery, self).__init__(date=date, dataset_id=dataset_id)
         
-    def __call__(self, session, order=True):
+    def __call__(self, session, order=True, valid=True):
         """Produce a query from the session."""
         q = session.query(Dataset)
+        if self.dataset_id is not None:
+            q = q.filter(Dataset.id==self.dataset_id)
+        if valid is not None:
+            q = q.filter(Dataset.valid==valid)
         if self.date is not None:
             start = self.date
             end = (self.date + datetime.timedelta(days=1))
@@ -47,6 +51,7 @@ class DatasetQuery(ClickGroup):
         """docstring for decorate"""
         func = cls.option("--date", default=None, type=cls.validate_date,
             name="date", help="Limit the query to a specific date.")(func)
+        func = cls.option("--id", default=None, type=int, help="Dataset ID", name='dataset_id')(func)
         func = super(DatasetQuery, cls).decorate(func)
         return func
 
@@ -143,12 +148,13 @@ def read(progress, paths, force):
 @cli.command()
 @DatasetQuery.decorate
 @CeleryProgressGroup.decorate
-def refresh(datasetquery, progress):
+@click.option("--validate/--no-validate", default=False, help="Validate datasets.")
+def refresh(datasetquery, progress, validate):
     """Refresh datasets."""
     with app.app_context():
         query = datasetquery(app.session).order_by(Dataset.created)
         click.echo("Refreshing {:d} datasets.".format(query.count()))
-        progress(refresh_task.si(dataset.id) for dataset in query.all())
+        progress(refresh_task.si(dataset.id, validate=validate) for dataset in query.all())
         
 @cli.command()
 @DatasetQuery.decorate
