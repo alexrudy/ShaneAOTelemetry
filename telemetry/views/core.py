@@ -54,6 +54,7 @@ def telemetry_plotting_task(**default_kwargs):
             import matplotlib
             matplotlib.use("Agg")
             import seaborn
+            seaborn.set()
             dataset = self.session.query(Dataset).get(dataset_id)
             component = self.session.query(TelemetryKind).get(component_id)
             telemetry = dataset.telemetry[component.h5path]
