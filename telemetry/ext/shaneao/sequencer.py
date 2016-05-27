@@ -19,7 +19,7 @@ from astropy.time import Time
 
 # Logging
 import logging
-from .header import parse_values_from_header
+from .header import parse_values_from_header, get_created_datetime
 from astropy.utils.console import ProgressBar
 
 log = logging.getLogger("upgrade")
@@ -43,10 +43,13 @@ class TelemetrySequence(object):
         self._file = None
         self.attrs = attrs # Telemetry attributes.
         self.sizes = get_data_sizes(attrs)
-
         
     def __del__(self):
         """Delete the file, if necessary."""
+        self.close()
+        
+    def close(self):
+        """Close the file."""
         if getattr(self, '_file', None) is not None:
             self._file.close()
         
@@ -89,8 +92,9 @@ class TelemetrySequence(object):
     def setup(self, n, root=".", mode="w"):
         """Set up the file."""
         self.filename = os.path.join(root,"telemetry_{0:04d}.hdf5".format(n))
+        log.info(self.filename)
         if not os.path.exists(os.path.dirname(self.filename)):
-            os.path.makedirs(os.path.dirname(self.filename))
+            os.makedirs(os.path.dirname(self.filename))
         self._file = h5py.File(self.filename, mode)
         g = self._file.require_group("telemetry")
         g.attrs['unreal'] = np.array([0, 0])
@@ -132,9 +136,13 @@ class TelemetrySequence(object):
         else:
             raise ValueError("Can't parse file number from {0}".format(basename))
         if (dnum in self) and (not force):
-            return
+            return False
         with fits.open(filename, memmap=False) as HDUs:
             self.append(HDUs[0].data.T[...,1:], dnum)
+            if 'created' not in self._file['telemetry'].attrs:
+                created_int = time.mktime(get_created_datetime(HDUs[0].header).timetuple())
+                self._file['telemetry'].attrs['created'] = created_int
+        return True
     
     def append(self, data, dnum=None):
         """Append a legacy dataset to this file."""

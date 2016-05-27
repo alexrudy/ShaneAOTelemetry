@@ -3,11 +3,107 @@
 from sqlalchemy import Column, Table
 from sqlalchemy import Integer, String, DateTime, Float, ForeignKey, Boolean, Date, Unicode
 from sqlalchemy.ext.hybrid import hybrid_property 
-
+from sqlalchemy.orm import relationship, backref
 from telemetry.models.data import DatasetInfoBase
 from telemetry.models.base import Base
 
-__all__ = ['ShaneAOMetadata']
+from .header import parse_values_from_header
+from .sequencer import TelemetrySequence
+
+from astropy.io import fits
+
+import six
+import json
+import time
+import datetime
+
+__all__ = ['ShaneAOMetadata', 'ShaneAODataFrame']
+
+class ShaneAODataSequence(Base):
+    """A shaneAO sequence of data frame items."""
+    dataset_id = Column(Integer, ForeignKey('dataset.id', ondelete='SET NULL'))
+    dataset = relationship('Dataset')
+    starttime = Column(DateTime, doc="Start of sequence time.")
+    stoptime = Column(DateTime, doc="End of sequence time.")
+    sequence_json = Column(Unicode, doc="Sequence attributes, in JSON format.")
+    filename = Column(Unicode, doc="Filename from the sequence manager.")
+    
+    @property
+    def sequence_attributes(self):
+        """Sequence attributes as a dictionary."""
+        return json.loads(self.sequence_json)
+        
+    def manager(self):
+        """The sizes of various components."""
+        attrs = self.sequence_attributes
+        if len(sequence.frames):
+            attrs['created'] = time.mktime(sequence.frames[0].created.timetuple())
+        return TelemetrySequence(attrs)
+        
+    def add(self, frame):
+        """Expand timeframes for the sequence."""
+        frame.sequence = self
+        self.starttime = min([self.starttime, frame.created])
+        self.stoptime = max([self.stoptime, frame.created])
+        
+    def __repr__(self):
+        """Represent the sequence."""
+        return "{0:s}({1:s})".format(
+            self.__class__.__name__,
+            ", ".join(["{0:s}={1!r}".format(k, v) for k, v in self.attributes(exclude=['sequence_json', 'dataset_id', 'starttime', 'stoptime'], include=['dataset']).items() ]),
+        )
+
+class ShaneAODataFrame(Base):
+    """A single frame from a ShaneAO telemetry dump"""
+    
+    valid = Column(Boolean, default=True, doc="Is this frame valid?")
+    included = Column(Boolean, default=False, doc="Is this included.")
+    onSky = Column(Boolean, default=False, doc="Was this frame taken OnSky?")
+    sequence_json = Column(Unicode, doc="Sequence attributes, in JSON format.")
+    header = Column(Unicode, doc="Full header, in JSON format.")
+    filename = Column(Unicode, doc="Full path to FITS file.")
+    length = Column(Integer, doc="Length of the telemetry dump.")
+    created = Column(DateTime, doc="Creation datetime.")
+    sequence_id = Column(Integer, ForeignKey(ShaneAODataSequence.id, ondelete='SET NULL'))
+    sequence = relationship(ShaneAODataSequence, backref=backref("frames", order_by=created))
+    
+    @property
+    def sequence_attributes(self):
+        """Sequence attributes as a dictionary."""
+        return json.loads(self.sequence_json)
+    
+    def refresh_attributes(self):
+        """Refresh the JSON attributes here."""
+        self.sequence_json, self.created = self.json_from_fits(fits.getheader(self.filename))
+        
+        
+    @classmethod
+    def json_from_fits(cls, header):
+        """Get the JSON string from a fits filename."""
+        sa = parse_values_from_header(header)
+        created = sa.pop('created', None)
+        for k,v in sa.items():
+            if isinstance(v, (datetime.datetime,)):
+                sa[k] = time.mktime(v.timetuple())
+            elif isinstance(v, (datetime.date,)):
+                sa[k] = v.toordinal()
+            elif isinstance(v, float):
+                sa[k] = "{:.5f}".format(v)
+        sa.setdefault('refCent_filename', sa.pop('refCent_file', ''))
+        return six.text_type(json.dumps(sa, sort_keys=True)), created
+    
+    @classmethod
+    def from_fits(cls, filename):
+        """From a FITS file."""
+        header = fits.getheader(filename)
+        kwargs = {}
+        
+        kwargs['filename'] = filename
+        kwargs['header'] = json.dumps(header.items())
+        kwargs['length'] = header['NAXIS2'] - 1
+        kwargs['sequence_json'], kwargs['created'] = cls.json_from_fits(header)
+        return cls(**kwargs)
+    
 
 class ShaneAOInfo(DatasetInfoBase):
     """An object containing the ShaneAO Info."""
@@ -111,7 +207,7 @@ class ShaneAOInfo(DatasetInfoBase):
         """A dictionary of only the attributes which are relevant to sequencing."""
         attrs = self.attributes()
         for key in self.SEQUENCE_EXCLUDES:
-            del attrs[key]
+            attrs.pop(key, None)
         return attrs
     
 

@@ -41,6 +41,11 @@ SHANEAO_HEADER_VALUES = [
     ("KALMAN_B", 'hybrid_bleed', float),
 ]
 
+def get_created_datetime(header):
+    """docstring for get_created_datetime"""
+    datestring = header['DATE'] + "T" + header['TIME']
+    return datetime.datetime.strptime(datestring, '%Y-%m-%dT%H%M%S')
+
 def parse_values_from_header(filename_or_header):
     """Parse argument values from a FITS Header."""
     args = {}
@@ -55,8 +60,7 @@ def parse_values_from_header(filename_or_header):
         except KeyError:
             warnings.warn("Can't find key {0} in header".format(key, header))
     
-    datestring = header['DATE'] + "T" + header['TIME']
-    args['created'] = datetime.datetime.strptime(datestring, '%Y-%m-%dT%H%M%S')
+    args['created'] = get_created_datetime(header)
     args['date'] = args['created'].date()
     
     # Get additional keyword values which might have been missed.
