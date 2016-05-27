@@ -85,6 +85,18 @@ class DatasetInfoBase(Base):
         attrs['dataset'] = dataset
         return cls(**attrs)
     
+    def check_attributes(self, mapping):
+        """Check attributes."""
+        colnames = set(c.name for c in self.__table__.columns)
+        attrs = dict((k,mapping[k]) for k in mapping.keys() if k in colnames)
+        mismatches = {}
+        for key in attrs:
+            if isinstance(attrs[key], np.bool_):
+                attrs[key] = bool(attrs[key])
+            if attrs[key] != getattr(self, key):
+                mismatches[key] = (attrs[key], getattr(self, key))
+        
+    
     def sequence_attributes(self):
         """The dictionary sequenece attributes."""
         return self.attributes()
@@ -128,6 +140,8 @@ class Dataset(Base):
     sequence = Column(Integer, doc="Dataset sequence number.")
     created = Column(DateTime, doc="Creation datetime.")
     date = Column(Date, doc="Creation date (UT)")
+    valid = Column(Boolean, doc="Is this dataset valid?")
+    error_message = Column(Unicode, doc="Error message from opening this file.")
     
     # Data parameters which are universal.
     rate = Column(Float, doc="Sampling Rate")
@@ -179,7 +193,13 @@ class Dataset(Base):
             if session is not None:
                 self.update_h5py_group(session, g)
     
-    def update_h5py_group(self, session, g):
+    def _validate_h5py_item_visitor(self, name, item):
+        """A visitor to validate problems in datasets."""
+        if isinstance(item, h5py.Dataset):
+            if not np.isfinite(item).all():
+                raise ValueError("{0} contains non-finite data.".format(item))
+    
+    def update_h5py_group(self, session, g, verify=False):
         """Update database to match the HDF5 group"""
         if g.name != self.h5path:
             g = g.file[self.h5path]
@@ -209,13 +229,28 @@ class Dataset(Base):
         for telemetry in list(self.telemetry.values()):
             if telemetry.kind.h5path not in g:
                 del self.telemetry[telemetry.kind.h5path]
+                
+        if verify:
+            g.visititems(self._validate_h5py_item_visitor)
+        
         return
         
-    def update(self, session=None):
+    def update(self, session=None, verify=False):
         """Update this HDF5 object."""
         with self.open() as g:
             if session is not None:
-                self.update_h5py_group(session, g)
+                self.update_h5py_group(session, g, verify=verify)
+    
+    def validate(self):
+        """Validate this entire dataset."""
+        try:
+            self.update(verify=True)
+        except Exception as e:
+            self.error_message = six.text_type(repr(e))
+            self.valid = False
+        else:
+            self.valid = True
+            self.error_message = None
     
     @classmethod
     def from_h5py_group(cls, session, g):
@@ -241,7 +276,10 @@ class Dataset(Base):
     
     def __repr__(self):
         """Sensible representation."""
-        return "<{0} {sequence:d} from {date:%Y-%m-%d}>".format(self.__class__.__name__, **self.attributes())
+        try:
+            return "{0}(sequence={sequence:d}, date={date:%Y-%m-%d})".format(self.__class__.__name__, **self.attributes())
+        except ValueError:
+            return "{0}(id={1})".format(self.__class__.__name__, self.id)
         
     def title(self):
         """A matplotlib-suitable title string."""
