@@ -14,8 +14,14 @@ def prepare_timeseries_data(telemetry, flatten=True, real=True):
     data = telemetry.read()
     
     data = data.transpose()
-    if flatten:
-        data = data.reshape((data.shape[0], -1))
+    if flatten and data.size:
+        try:
+            flat_shape = (data.shape[0], -1)
+            data = data.reshape(flat_shape)
+        except ValueError as e:
+            raise ValueError("<array shape={0!r}>.reshape({1!r}) error: {2!s}".format(
+                data.shape, flat_shape, e
+            ))
     
     if real and np.iscomplexobj(data):
         data = np.abs(data)
