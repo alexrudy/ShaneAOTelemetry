@@ -28,7 +28,13 @@ class Base(declarative_base()):
         include = set(column.name for column in self.__table__.columns).union(include).union(self.INCLUDE)
         remove = (set(attrs.keys()).difference(include)).union(exclude).union(self.EXCLUDE)
         for key in remove:
-            del attrs[key]
+            attrs.pop(key, None)
         return attrs
     
+    def __repr__(self):
+        """Default representation."""
+        return "{0:s}({1:s})".format(
+            self.__class__.__name__,
+            ", ".join(["{0:s}={1!r}".format(k, v) for k, v in self.attributes().items() ]),
+        )
 
