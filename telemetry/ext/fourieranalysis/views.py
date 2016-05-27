@@ -92,33 +92,51 @@ def plot_fit_transfer_model(model, freq, data, ax):
 def transferfunction_plot(ax, transfer):
     """Plot a periodogram."""
     data = transfer.read()
+    transferfunction_plot_from_data(ax, data, transfer)
+    
+def transferfunction_plot_from_data(ax, data, transfer, force_fit=False, show_fit=True):
+    """Make a transfer function plot, with the data specified"""
     length = data.shape[-1]
     freq = frequencies(length, transfer.dataset.rate)
     
     data_p = transfer.kind.normalized(data)
     data_m = transfer.kind.logaverage(data)
     
-    alpha = max([1.0 / float(np.prod(data_p.shape[:-1])), 0.005])
+    alpha = max([2.0 / float(np.prod(data_p.shape[:-1])), 0.005])
     
     expected_model = TransferFunctionModel.expected(transfer.dataset)
     data_e = expected_model(freq)
     
-    lines = show_periodogram(ax, data_p.T, rate=transfer.dataset.instrument_data.wfs_rate, alpha=alpha)
+    lines = show_periodogram(ax, data_p.T, rate=transfer.dataset.instrument_data.wfs_rate, alpha=alpha, color='k')
     show_periodogram(ax, data_m.T, rate=transfer.dataset.instrument_data.wfs_rate, color=lines[0].get_color(), label="Data")
     show_periodogram(ax, data_e, rate=transfer.dataset.instrument_data.wfs_rate, label='Expected Model')
     show_model_parameters(ax, expected_model, pos=(0.6, 0.1), name="Expected")
+    if show_fit:
+        if "transferfunctionmodel/{0}".format(transfer.kind.kind) in transfer.dataset.telemetry and (not force_fit):
+            log.info("Using transfer function model fit from data.")
+            transfer_model = transfer.dataset.telemetry["transferfunctionmodel/{0}".format(transfer.kind.kind)]
+            plot_mean_transfer_model(transfer_model, ax, length=length)
+        else:
+            log.info("Generating transfer function model fit.")
+            plot_fit_transfer_model(expected_model, freq, data_m, ax)
     
-    if "transferfunctionmodel/{0}".format(transfer.kind.kind) in transfer.dataset.telemetry:
-        log.info("Using transfer function model fit from data.")
-        transfer_model = transfer.dataset.telemetry["transferfunctionmodel/{0}".format(transfer.kind.kind)]
-        plot_mean_transfer_model(transfer_model, ax, length=length)
-    else:
-        log.info("Generating transfer function model fit.")
-        plot_fit_transfer_model(expected_model, freq, data_m, ax)
-    
-    ax.set_title('{0:s} ETF for {1  :s}'.format(transfer.kind.kind.capitalize(), transfer.dataset.title()))
+    ax.set_title('{0:s} ETF for {1:s}'.format(transfer.kind.kind.capitalize(), transfer.dataset.title()))
     ax.legend(loc='best')
-    ax.text(0.0, 1.01, r"${:.0f}\mathrm{{Hz}}$ $\alpha={:.3f}$".format(transfer.dataset.instrument_data.wfs_rate, transfer.dataset.instrument_data.alpha), transform=ax.transAxes)
+    ax.text(0.0, 0.99, 
+        r"$\alpha={:.3f}$".format(transfer.dataset.instrument_data.alpha), 
+        transform=ax.transAxes, va='top')
+
+@telemetry_plotting_task(category='tflowmodes')
+def tf_low_modes(ax, telemetry):
+    """Plot transfer function for low modes."""
+    data = telemetry.read()
+    transferfunction_plot_from_data(ax, data[:20], telemetry, show_fit=True)
+    data_m = telemetry.kind.logaverage(data)
+    show_periodogram(ax, data_m.T, rate=telemetry.dataset.instrument_data.wfs_rate, color='m', label="All Modes")
+    
+    ax.set_title('Limited {0:s} ETF for {1:s}'.format(telemetry.kind.kind.capitalize(), telemetry.dataset.title()))
+    ax.legend(loc='best')
+    
 
 @telemetry_plotting_task(category='transferfunctionmodel')
 def transferfunction_model_summary(ax, telemetry, **kwargs):
