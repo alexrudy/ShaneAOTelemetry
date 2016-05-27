@@ -9,7 +9,7 @@ import h5py
 from sqlalchemy.orm import object_session
 from celery import chain, group
 from celery.utils.log import get_task_logger
-logger = get_task_logger(__name__)
+log = get_task_logger(__name__)
 
 from .application import app
 from .models import Dataset, TelemetryKind, DatasetInfoBase, Instrument
@@ -19,9 +19,9 @@ def generate(self, dataset_id, telemetrykind_id, force=False):
     """A generate task."""
     kind = self.session.query(TelemetryKind).filter_by(id=telemetrykind_id).one()
     dataset = self.session.query(Dataset).filter_by(id=dataset_id).one()
-    logger.info("Generating '{0}' from {1}".format(kind.h5path, dataset))
+    log.info("Generating '{0}' from {1}".format(kind.h5path, dataset))
     if (kind.h5path in dataset.telemetry) and (force):
-        logger.debug("Removed old telemetry {0}".format(kind.h5path))
+        log.debug("Removed old telemetry {0}".format(kind.h5path))
         dataset.telemetry[kind.h5path].remove()
     if (kind.h5path not in dataset.telemetry) or (force):
         telemetry = kind.generate(dataset)
@@ -46,6 +46,7 @@ def read(self, filename, force=False):
     if force and (dataset is not None):
         self.session.delete(dataset)
     if force or (dataset is None):
+        log.info("Opening {0}".format(filename))
         with h5py.File(filename, mode='r') as f:
             dataset = Dataset.from_h5py_group(self.session, f['telemetry'])
             metadata = DatasetInfoBase.from_mapping(dataset, f['telemetry'].attrs, instrument=instrument.metadata_type)
@@ -56,16 +57,14 @@ def read(self, filename, force=False):
     self.session.commit()
 
 @app.celery.task(bind=True)
-def refresh(self, dataset_id):
+def refresh(self, dataset_id, validate=False):
     """Refresh a given dataset id."""
     dataset = self.session.query(Dataset).filter_by(id=dataset_id).one()
-    try:
-        dataset.update()
-    except Exception:
-        self.session.rollback()
-        raise
+    if validate:
+        dataset.validate()
     else:
-        self.session.commit()
+        dataset.update()
+    self.session.commit()
     return dataset.id
     
 def rgenerate(dataset, telemetrykind, **kwargs):
