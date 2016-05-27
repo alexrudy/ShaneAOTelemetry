@@ -49,7 +49,7 @@ class Periodogram(DerivedTelemetry):
         data = np.asarray(dataset.telemetry[self.kind].read())
         pdata = periodogram(data.T, length, **kwargs).T
         if not np.isfinite(pdata).all():
-            raise ValueError("Failed to periodogram {0} {1}".format(data.T.shape, np.isfinite(data).all()))
+            raise ValueError("Periodogram failed, got NaN: {0} shape={1} {2}".format(dataset, data.T.shape,"" if np.isfinite(data).all() else "(dataset contained NaN)"))
         with dataset.open() as g:
             g.create_dataset(self.h5path, data=pdata)
             g.attrs['length'] = length

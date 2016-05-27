@@ -28,23 +28,16 @@ class LogLevMarLSQFitter(fitting.LevMarLSQFitter):
         if weights is None:
             return np.ravel(np.log(model(*args[2 : -1])) - np.log(meas))
         else:
-            return np.ravel(np.log(weights * (model(*args[2 : -1])) - np.log(meas)))
+            return np.ravel(np.log(weights * model(*args[2 : -1])) - np.log(meas))
     
 
-def log_frequency_weighting(freq):
-    """Given an array of frequencies, compute the inverse-log-weighting."""
-    # freq[freq != 0.0] = np.nan
-    lfreq = -np.log(np.abs(freq))
-    lfreq[~np.isfinite(lfreq)] = 0.0
-    lfw = lfreq - lfreq.min()
-    lfwn = lfw/lfw.max()
-    lfwn[freq == 0.0] = 1.0
-    return lfwn
-    
-def gauss_freq_weighting(freq):
-    sig = np.max(freq)/2.0
-    w = np.exp(-0.5 * (freq/sig)**2.0)
-    return w
+def frequency_weigts_suppress_static(freq):
+    """Suppress static values in frequency weights."""
+    x = np.asarray(freq)
+    g = np.exp(-0.5 * (x**2.0) / (0.1))
+    g /= g.max()
+    g[g==1.0] = 1.0 - 1e-5
+    return (1.0 - g)
 
 def expected_model(tf):
     """Generate the expected model."""
@@ -59,10 +52,12 @@ def fit_model(tf, y, index=0):
     return model
     
     
-def apply_LevMarLSQFitter(m, x, y):
+def apply_LevMarLSQFitter(m, x, y, w=None):
     """Apply the LMLSQ Fitter"""
     f = LogLevMarLSQFitter()
-    model = f(m, x, y, maxiter=1000)
+    if w is None:
+        w = frequency_weigts_suppress_static(x)
+    model = f(m, x, y, weights=w, maxiter=3000)
     if f.fit_info['ierr'] not in [1, 2, 3, 4]:
         print("Fit may not have converged. {0}".format(f.fit_info['message']))
     return model
@@ -93,4 +88,6 @@ def fit_models(tf, cls, progressbar=False):
         model = apply_LevMarLSQFitter(model_init, x, y)
         for param_name in model.param_names:
             getattr(model_result, param_name).value.flat[i] = getattr(model, param_name).value
+    for param_name in model.param_names:
+        print("{0}: {1}".format(param_name, getattr(model_result, param_name).value.mean()))
     return model_result
