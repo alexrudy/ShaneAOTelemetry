@@ -1,2 +1,8 @@
 #!/usr/bin/env bash
-celery -A telemetry.celery worker -lINFO --concurrency=8 -n default.%h --autoreload
+if [ $# -gt 0 ]; then
+    echo $#
+    celery -A telemetry.celery multi stop default --pidfile=celery/run/%n.pid
+else
+    echo "restart"
+    celery -A telemetry.celery multi restart default -linfo --pidfile=celery/run/%n.pid --autoreload --logfile=celery/log/%n.log
+fi
