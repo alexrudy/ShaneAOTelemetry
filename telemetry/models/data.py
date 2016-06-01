@@ -11,6 +11,7 @@ import collections
 import pytz
 import numpy as np
 import six
+import logging
 
 from sqlalchemy import inspect
 from sqlalchemy import Column, Table
@@ -28,6 +29,8 @@ from .base import Base
 from .case import Telemetry, TelemetryKind
 
 __all__ = ['Instrument', 'DatasetInfoBase', 'Dataset', 'Tag']
+
+log = logging.getLogger(__name__)
 
 class Instrument(Base):
     """An association object which matches an instrument to a dataset."""
@@ -93,8 +96,11 @@ class DatasetInfoBase(Base):
         for key in attrs:
             if isinstance(attrs[key], np.bool_):
                 attrs[key] = bool(attrs[key])
+            if isinstance(getattr(self, key), numbers.Number):
+                attrs[key] = float(attrs[key])
             if attrs[key] != getattr(self, key):
                 mismatches[key] = (attrs[key], getattr(self, key))
+        return mismatches
         
     
     def sequence_attributes(self):
@@ -204,6 +210,10 @@ class Dataset(Base):
         if g.name != self.h5path:
             g = g.file[self.h5path]
             
+        mismatches = self.instrument_data.check_attributes(g.attrs)
+        for k, (v1, v2) in mismatches.items():
+            log.warning("Mismatches for {0}: {1}={2}->{3}".format(self, k, v1, v2))
+            log.info("Mismatches for {0}: {1}={2}->{3}".format(self, k, type(v1), type(v2)))
         checked_paths = set()
         to_check_paths = [kind.h5path for kind in session.query(TelemetryKind).all()]
         keys = collections.deque(to_check_paths)
