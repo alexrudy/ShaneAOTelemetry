@@ -34,8 +34,9 @@ def timeseries(ax, telemetry, select=None, **kwargs):
     """Plot a telemetry timeseries."""
     time, data = prepare_timeseries_data(telemetry)
     
-    kwargs.setdefault('color', 'k')
-    kwargs.setdefault('alpha', 0.01)
+    kwargs.setdefault('alpha', max([0.01, 5.0/data.shape[1]]))
+    if data.shape[1] > 20:
+        kwargs.setdefault('color', 'k')
     
     if select is not None:
         data = data[:,select]
