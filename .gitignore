@@ -66,3 +66,4 @@ dev/
 *.png
 *.txt
 *.mp4
+celery/*
