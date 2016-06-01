@@ -11,7 +11,7 @@ import resource
 from celery.utils.log import get_task_logger
 
 __all__ = ['TelemetryGenerator', 'SlopeVectorX', 'SlopeVectorY', 
-    'HCoefficients', 'HEigenvalues', 'PseudoPhase', 'FourierCoefficients']
+    'HCoefficients', 'HEigenvalues', 'PseudoPhase', 'FourierCoefficients', 'PhaseToH', 'HwCoefficients']
 
 def memory():
     """Get memory usage as a string."""
@@ -149,6 +149,16 @@ class HCoefficients(MatrixTransform):
     
     MATRIX = "H_d"
     
+
+class HwCoefficients(MatrixTransform):
+    """Coefficients of the H matrix, generated from slopes."""
+    
+    __mapper_args__ = {
+            'polymorphic_identity':'hwcoefficients',
+        }
+    
+    MATRIX = "Hw_d"
+
 class PseudoPhase(MatrixTransform):
     """Pseudophase, generated from WFS slopes."""
     
@@ -159,6 +169,23 @@ class PseudoPhase(MatrixTransform):
     MATRIX = "L"
     OUTPUT_SHAPE = (32, 32, -1)
 
+class PhaseToH(MatrixTransform):
+    """Pseudophase, generated from WFS slopes."""
+    
+    __mapper_args__ = {
+            'polymorphic_identity':'phasetoh',
+        }
+        
+    SOURCE = 'phase'
+    MATRIX = "Pt_d"
+    
+    def _apply_matrix(self, s, m):
+        """Apply the matrix."""
+        log = get_task_logger(__name__)
+        s.shape = (1024, -1)
+        coeffs = m.dot(s)
+        coeffs = coeffs.view(np.ndarray)
+        return coeffs
 
 class FourierCoefficients(MatrixTransform):
     """FourierCoefficients generated from WFS slopes."""

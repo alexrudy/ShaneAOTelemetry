@@ -16,7 +16,7 @@ from .tasks import read as read_task, refresh as refresh_task, rgenerate, genera
 from .application import app
 from .models import Base, Dataset, TelemetryKind, TelemetryPrerequisite
 from .models import (SlopeVectorX, SlopeVectorY, HCoefficients, 
-    PseudoPhase, FourierCoefficients, HEigenvalues)
+    PseudoPhase, FourierCoefficients, HEigenvalues, PhaseToH, HwCoefficients)
 
 class DatasetQuery(ClickGroup):
     """A query of datasets, filtered by command line arguments."""
@@ -70,6 +70,8 @@ KINDS = [
     (PseudoPhase, "Pseudo Phase", "pseudophase"),
     (SlopeVectorX, "X Slopes", "sx"),
     (SlopeVectorY, "Y Slopes", "sy"),
+    (PhaseToH, "H from Phase", "hphase"),
+    (HwCoefficients, "Woofer Modal Coefficients", "hwcoefficients"),
     (TelemetryKind, "Slopes", "slopes"),
     (TelemetryKind, "Tweeter Actuators", "tweeter"),
     (TelemetryKind, "Woofer Actuators", "woofer"),
@@ -81,10 +83,12 @@ KINDS = [
 PREREQS = {
     "heigenvalues":["slopes"],
     "hcoefficients":["slopes"],
+    "hwcoefficients":["slopes"],
     "fouriercoeffs":["slopes"],
     "pseudophase":["slopes"],
     "sx":["slopes"],
     "sy":["slopes"],
+    "hphase":["phase"]
 }
 
 @cli.command()
