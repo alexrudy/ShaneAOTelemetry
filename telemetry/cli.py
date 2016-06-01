@@ -21,6 +21,8 @@ from .application import app
 
 __all__ = ['progress', 'cli', 'ClickError']
 
+log = logging.getLogger(__name__)
+
 def progress(resultset):
     """A group result progressbar."""
     with ProgressBar(len(resultset)) as pbar:
@@ -35,6 +37,7 @@ def progress(resultset):
 def cli():
     lumberjack.setup_logging(mode='stream', level=logging.INFO)
     click.secho("Connected to {0}".format(app.config['SQLALCHEMY_DATABASE_URI']), fg='blue')
+    log.info("Set up logging.")
     
 @cli.command()
 def shell():
@@ -125,7 +128,8 @@ class CeleryProgressGroup(ClickGroup):
             try:
                 task = next(iterator)
             except StopIteration:
-                raise ClickError("No tasks were available.")
+                click.secho("No tasks were available", fg='red')
+                raise ClickError("Empty task list.")
             else:
                 click.echo(">>> {0!r}".format(task))
                 try:
@@ -142,9 +146,11 @@ class CeleryProgressGroup(ClickGroup):
         if self.try_local:
             return
         g = group(iterator)
+        if not len(g.tasks):
+            click.secho("No tasks were available", fg='red')
+            raise ClickError("Empty task list.")
         if self.local:
             click.echo("Running tasks locally.".format(self.limit))
-            
             for task in g:
                 task()
             return None
