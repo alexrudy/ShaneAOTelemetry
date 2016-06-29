@@ -29,6 +29,7 @@ def main():
     import matplotlib
     matplotlib.use("Agg")
     matplotlib.rcParams['text.usetex'] = False
+    import seaborn as sns
     from telemetry.application import app
     from telemetry.models import Dataset, TelemetryKind, Instrument, Telemetry
     from telemetry.ext.shaneao.models import ShaneAOInfo

@@ -11,11 +11,14 @@ import itertools
 import astropy.units as u
 import numpy as np
 
-def fit_and_plot_gains(gains, label, label_ypos, color, show_data=True, effective=True, boost=None):
+def fit_and_plot_gains(gains, label, label_ypos, color, show_data=True, effective=True, boost=None, final=False):
     """Fit and plot a bunch of gains."""
     import matplotlib.pyplot as plt
     
-    if effective:
+    
+    if final:
+        expected_gain = np.asarray(gains['effective gain'] / 2.7)
+    elif effective:
         expected_gain = np.asarray(gains['effective gain'])
     else:
         expected_gain = np.asarray(gains['gain'])
@@ -25,6 +28,7 @@ def fit_and_plot_gains(gains, label, label_ypos, color, show_data=True, effectiv
     y = model_gain * np.sqrt(1.0/model_noise)
     A = np.vstack([expected_gain, np.zeros(len(expected_gain))]).T
     A *= np.sqrt(1.0/model_noise)[:,None]
+    print(A, y)
     m, c = np.linalg.lstsq(A, y)[0]
     
     if show_data:
@@ -66,10 +70,25 @@ def plot_results(data, output_directory, filename_root, title):
     
     
     plt.figure()
-    fit_and_plot_gains(data, "Combined", 0.85, "r", show_data=False)
-    for boost_factor in boosts:
-        fit_and_plot_gains(boosted[boosted['boost'] == boost_factor], r"${:.0f}\times$Boosted".format(boost_factor), 0.9, "g")
     fit_and_plot_gains(original, "Original", 0.95, "b")
+    x = np.linspace(0.0, 2.0, 50)
+    plt.title(title)
+    plt.plot(x, x, alpha=0.1, color='k', ls=":")
+    plt.xlabel("Expected Gain Setting")
+    plt.ylabel("Gain from Model Fit")
+    plt.xlim(0.0, 0.8)
+    plt.ylim(0.0, 0.8)
+    plt.gca().set_aspect(1)
+    plt.legend(loc='upper left', fontsize='small')
+    filename_trend = os.path.join(output_directory,"{:s}.orig.png".format(filename_root))
+    plt.savefig(filename_trend)
+    
+    plt.figure()
+    fit_and_plot_gains(data, "Combined", 0.85, "r", show_data=False, final=True)
+    for boost_factor in boosts:
+        if (boosted['boost'] == boost_factor).any():
+            fit_and_plot_gains(boosted[boosted['boost'] == boost_factor], r"${:.1f}\times$Boosted".format(boost_factor), 0.9, "g", final=True)
+    fit_and_plot_gains(original, "Original", 0.95, "b", final=True)
     x = np.linspace(0.0, 2.0, 50)
     plt.title(title)
     plt.plot(x, x, alpha=0.1, color='k', ls=":")
@@ -83,7 +102,8 @@ def plot_results(data, output_directory, filename_root, title):
     
     plt.figure(figsize=(6,5))
     for boost_factor in boosts:
-        fit_and_plot_gains(boosted[boosted['boost'] == boost_factor], r"${:.0f}\times$Boosted".format(boost_factor), 0.95, "g", effective=False, boost=boost_factor)
+        if (boosted['boost'] == boost_factor).any():
+            fit_and_plot_gains(boosted[boosted['boost'] == boost_factor], r"${:.1f}\times$Boosted".format(boost_factor), 0.95, "g", effective=False, boost=boost_factor)
     plt.ylim(0.0, 1.0)
     plt.xlim(0.0, 1.0)
     plt.xlabel("Expected Gain Setting")
@@ -120,4 +140,6 @@ def analyze_table(data, output_directory):
     for rate in ao_rates:
         filename_root = "gain-trends-{:.0f}Hz".format(rate)
         title = "ShaneAO at {:.0f}Hz".format(rate)
-        plot_results(data[data['rate'] == rate], output_directory, filename_root, title)
+        if (data['rate'] == rate).any():
+            print(data[data['rate'] == rate])
+            plot_results(data[data['rate'] == rate], output_directory, filename_root, title)
