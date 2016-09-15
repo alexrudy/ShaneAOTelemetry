@@ -18,10 +18,11 @@ def fa():
 
 @fa.command()
 @CeleryProgressGroup.decorate
-def sequence(progress):
+@DatasetQuery.decorate
+def sequence(datasetquery, progress):
     """Sequence datasets."""
     with app.app_context():
-        query = app.session.query(Dataset).order_by(Dataset.created)
+        query = datasetquery(app.session).order_by(Dataset.created)
         click.echo("Sequencing {0:d} datasets.".format(query.count()))
         progress(tasks.pair.si(dataset.id) for dataset in query.all())
         
