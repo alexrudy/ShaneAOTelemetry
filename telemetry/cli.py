@@ -115,7 +115,7 @@ class CeleryProgressGroup(ClickGroup):
     argument = 'progress'
     
     def __init__(self, try_one=False, wait=True, limit=None, local=False, try_local=False):
-        super(CeleryProgressGroup, self).__init__(try_one=try_one, wait=wait, limit=limit, local=False, try_local=try_local)
+        super(CeleryProgressGroup, self).__init__(try_one=try_one, wait=wait, limit=limit, local=False, try_local=try_local, timeout=None)
         
     def __call__(self, iterator):
         """Call the progress."""
@@ -137,7 +137,9 @@ class CeleryProgressGroup(ClickGroup):
                     if self.local or self.try_local:
                         result = task()
                     else:
-                        result = task.delay().get()
+                        result = task.delay()
+                    if hasattr(result, 'get'):
+                        result = result.get(timeout=self.timeout)
                 except Exception:
                     click.secho("Failure!", fg='red')
                     raise
@@ -155,6 +157,8 @@ class CeleryProgressGroup(ClickGroup):
             click.echo("Running tasks locally.".format(self.limit))
             for task in g:
                 results.append(task())
+            click.echo("Results:")
+            click.echo("\n".join([repr(result.get()) for result in results]))
             return results
         else:
             r = g.delay()
