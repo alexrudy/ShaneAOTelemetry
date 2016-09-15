@@ -122,6 +122,7 @@ class CeleryProgressGroup(ClickGroup):
         if self.limit is not None:
             click.echo("Limiting to {0:d} items.".format(self.limit))
             iterator = itertools.islice(iterator, 0, self.limit)
+        results = []
         iterator = iter(iterator)
         if self.try_one or self.try_local:
             click.echo("Trying a single task:")
@@ -143,8 +144,9 @@ class CeleryProgressGroup(ClickGroup):
                 else:
                     click.echo("{0!r}".format(result))
                     click.secho("Success!", fg="green")
+                    results.append(result)
         if self.try_local:
-            return
+            return results
         g = group(iterator)
         if not len(g.tasks):
             click.secho("No tasks were available", fg='red')
@@ -152,8 +154,8 @@ class CeleryProgressGroup(ClickGroup):
         if self.local:
             click.echo("Running tasks locally.".format(self.limit))
             for task in g:
-                task()
-            return None
+                results.append(task())
+            return results
         else:
             r = g.delay()
             try:

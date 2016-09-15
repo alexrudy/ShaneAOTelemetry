@@ -30,11 +30,13 @@ class DatasetQuery(ClickGroup):
         """Produce a query from the session."""
         q = session.query(Dataset)
         if self.dataset_id is not None:
+            click.echo("Sticking to dataset id={:d}".format(self.dataset_id))
             q = q.filter(Dataset.id==self.dataset_id)
         if valid is not None:
             q = q.filter(Dataset.valid==valid)
         if self.date is not None:
-            start = self.date
+            click.echo("Limiting to datasets created around {0!s}".format(self.date))
+            start = (self.date - datetime.timedelta(days=1))
             end = (self.date + datetime.timedelta(days=1))
             q = q.filter(Dataset.date.between(start, end))
         if order:
@@ -44,13 +46,15 @@ class DatasetQuery(ClickGroup):
     @staticmethod
     def validate_date(value):
         """Validate a date."""
+        if value == "today":
+            return datetime.datetime.now().date()
         return datetime.datetime.strptime(value, "%Y-%m-%d").date()
     
     @classmethod
     def decorate(cls, func):
         """docstring for decorate"""
         func = cls.option("--date", default=None, type=cls.validate_date,
-            name="date", help="Limit the query to a specific date.")(func)
+            name="date", help="Limit the query to a specific date.", envvar='TELEM_DATE')(func)
         func = cls.option("--id", default=None, type=int, help="Dataset ID", name='dataset_id')(func)
         func = super(DatasetQuery, cls).decorate(func)
         return func
@@ -156,8 +160,8 @@ def read(progress, paths, force):
 def refresh(datasetquery, progress, validate):
     """Refresh datasets."""
     with app.app_context():
-        query = datasetquery(app.session).order_by(Dataset.created)
-        click.echo("Refreshing {:d} datasets.".format(query.count()))
+        query = datasetquery(app.session, valid=None).order_by(Dataset.created)
+        click.echo("Refreshing {:d} datasets. validate={!r}".format(query.count(), validate))
         progress(refresh_task.si(dataset.id, validate=validate) for dataset in query.all())
         
 @cli.command()
