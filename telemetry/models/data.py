@@ -241,7 +241,7 @@ class Dataset(Base):
         for telemetry in list(self.telemetry.values()):
             if telemetry.kind.h5path not in g:
                 del self.telemetry[telemetry.kind.h5path]
-                
+        
         if verify:
             g.visititems(self._validate_h5py_item_visitor)
             if self.nsamples == 0:
@@ -252,6 +252,8 @@ class Dataset(Base):
     def update(self, session=None, verify=False):
         """Update this HDF5 object."""
         with self.open() as g:
+            if session is None:
+                session = object_session(self)
             if session is not None:
                 self.update_h5py_group(session, g, verify=verify)
     
