@@ -73,17 +73,21 @@ def generate_dataset(self, sequence_id, force=False):
         path_parts = os.path.abspath(sequence.filename).split(os.path.sep)
         instrument = Instrument.require(self.session, path_parts[-4])
         log.info("Opening {0}".format(sequence.filename))
-        with h5py.File(sequence.filename, mode='r') as f:
-            sequence.dataset = Dataset.from_h5py_group(self.session, f['telemetry'])
-            metadata = DatasetInfoBase.from_mapping(sequence.dataset, f['telemetry'].attrs, instrument=instrument.metadata_type)
-            sequence.dataset.instrument = instrument
-            sequence.dataset.update_h5py_group(self.session, f['telemetry'])
-            sequence.dataset.validate()
-            self.session.add(metadata)
+        lock = self.redis.lock("ShaneAODataSequence{:d}".format(sequence.id), timeout=1000)
+        with lock:
+            with h5py.File(sequence.filename, mode='r') as f:
+                sequence.dataset = Dataset.from_h5py_group(self.session, f['telemetry'])
+                metadata = DatasetInfoBase.from_mapping(sequence.dataset, f['telemetry'].attrs, instrument=instrument.metadata_type)
+                sequence.dataset.instrument = instrument
+                sequence.dataset.update_h5py_group(self.session, f['telemetry'])
+                sequence.dataset.validate()
+                self.session.add(metadata)
     sequence.dataset.update(self.session)
     self.session.add(sequence.dataset)
     self.session.add(sequence)
     self.session.commit()
+    self.session.refresh(sequence)
+    return sequence.dataset.id
 
 @app.celery.task(bind=True)
 def map_sequence(self, dataset_id):
@@ -129,26 +133,41 @@ def match_sequence(self, frame_id, maxsep=15, force=False):
 def concatenate_sequence(self, seq_id, root=".", force=False):
     """Concatenate a telemetry sequence."""
     sequence = self.session.query(ShaneAODataSequence).get(seq_id)
-    manager = sequence.manager()
-    if not len(sequence.frames):
-        attrs['created'] = time.mktime(sequence.frames[0].created.timetuple())
-    base = os.path.join(root, sequence.frames[0].created.date().strftime("%Y-%m-%d"), "data")
+    lock = self.redis.lock("ShaneAODataSequence{:d}".format(sequence.id), timeout=1000)
+    acquired = lock.acquire(blocking=False)
+    if not acquired:
+        print("File was locked, giving up.")
+        return sequence.id
     try:
-        manager.setup(sequence.id, base, mode="w" if force else "a")
-    except Exception as e:
-        log.error(e)
-        manager.close()
-        manager.setup(sequence.id, base, mode="w")
-    sequence.filename = manager.filename
-    self.session.add(sequence)
-    for frame in sequence.frames:
-        if frame.included:
-            continue
-        if manager.append_from_fits(frame.filename):
-            log.info("{}:{}".format(os.path.basename(frame.filename), frame.created))
-        frame.included = True
-        self.session.add(frame)
-    self.session.commit()
+        try:
+            manager = sequence.manager()
+        except ValueError as e:
+            log.error(e)
+            print("Manager failed, giving up.")
+            return sequence.id
+        if not len(sequence.frames):
+            attrs['created'] = time.mktime(sequence.frames[0].created.timetuple())
+        base = os.path.join(root, sequence.frames[0].created.date().strftime("%Y-%m-%d"), "data")
+        try:
+            manager.setup(sequence.id, base, mode="w" if force else "a")
+        except Exception as e:
+            log.error(e)
+            manager.close()
+            manager.setup(sequence.id, base, mode="w")
+        print("Concatenating to {:s}".format(manager.filename))
+        sequence.filename = manager.filename
+        self.session.add(sequence)
+        for frame in sequence.frames:
+            if frame.included:
+                continue
+            if manager.append_from_fits(frame.filename):
+                print("Concatenating from {:s}".format(os.path.basename(frame.filename)))
+                log.info("{}:{}".format(os.path.basename(frame.filename), frame.created))
+            frame.included = True
+            self.session.add(frame)
+        self.session.commit()
+    finally:
+        lock.release()
     return sequence.id
 
 def new_file_to_sequence(filename, root, force=False):
@@ -197,10 +216,11 @@ def rsync_telemetry(destination=".", date=None):
         date = date.strftime(DATEFMT)
     
     # Make the full destination path.
-    destination = os.path.join(destination, 'ShaneAO', 'raw', date)
+    destination = os.path.join(destination, 'raw', date)
     if not os.path.exists(destination):
         os.makedirs(destination)
-    
+    if not destination.endswith(os.path.sep):
+        destination = destination + os.path.sep
     # Subprocess arguments for RSYNC
     args = ['rsync', '-avP',
         '{host:s}:telemetry/{date:s}/*.fits'.format(host=app.config['SHANEAO_TELEMETRY_HOST'], date=date),

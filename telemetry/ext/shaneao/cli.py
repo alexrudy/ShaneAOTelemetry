@@ -7,6 +7,7 @@ from telemetry.models import Instrument, Dataset
 import click
 import celery
 import os
+import datetime
 import glob
 import time
 import lumberjack
@@ -44,18 +45,23 @@ def upgrade(paths, quiet, verbose, force, limit):
 @click.option('--continuous/--not-continuous', default=False, help="Continuous ")
 def download(verbose=False, continuous=False):
     """Download data from the ShaneAO remote data server."""
+    delay = 1.0
     if verbose:
         lumberjack.setup_logging(mode='stream', level=1)
     else:
         lumberjack.setup_logging(mode='stream', level=logging.INFO)
     root = os.path.join(app.config['TELEMETRY_ROOTDIRECTORY'], "ShaneAO")
+    start = time.time()
     proc = retrieve.rsync_telemetry(root)
     if continuous:
         try:
             click.echo("Press ^C to end downloading.")
             while not proc.returncode:
                 proc.wait()
-                time.sleep(1.0)
+                duration, start = time.time() - start, time.time()
+                time.sleep(delay)
+                if (delay < 10.0) and (duration < 5.0):
+                    delay += 1.0
                 proc = retrieve.rsync_telemetry(root)
         except KeyboardInterrupt:
             click.echo("")
@@ -67,11 +73,16 @@ def download(verbose=False, continuous=False):
 @shaneao.command()
 @CeleryProgressGroup.decorate
 @click.option("--force/--no-force", default=False, help="Force the update.")
-@click.argument("path")
-def new(progress, path, force=False):
+@click.option("--path", type=click.Path(), default=None)
+def new(progress, path=None, force=False):
     """Take the required actions for the new file."""
     root = os.path.join(app.config['TELEMETRY_ROOTDIRECTORY'], "ShaneAO")
-    progress(retrieve.new_file_to_sequence(p, root, force=force) for p in glob.iglob(path))
+    if path is None:
+        path = os.path.join(root, 'raw', '{:%Y-%m-%d}'.format(datetime.date.today()))
+        if not os.path.exists(path):
+            path = os.path.join(root, 'raw', '{:%Y-%m-%d}'.format((datetime.datetime.now() - datetime.timedelta(days=1)).date()))
+    click.echo("Searching '{}'".format(path))
+    progress(retrieve.new_file_to_sequence(p, root, force=force) for p in glob.iglob(os.path.join(path,"*.fits")))
     
 @shaneao.command()
 def purge_sequences():
@@ -83,12 +94,18 @@ def purge_sequences():
 
 @shaneao.command()
 @CeleryProgressGroup.decorate
+@click.option("--id", type=int, default=None)
 @click.option("--force/--no-force", default=False, help="Force the update.")
-def concatenate(progress, force):
+def concatenate(progress, force, id=None):
     """Concatenate sequences."""
     with app.app_context():
         root = os.path.join(app.config['TELEMETRY_ROOTDIRECTORY'], "ShaneAO")
-        progress(retrieve.concatenate_all_sequences(app.session, root, force))
+        if id:
+            task = retrieve.concatenate_sequence.si(id, root, force)
+            click.echo(">>> {!r}".format(task))
+            click.echo(task())
+        else:
+            progress(retrieve.concatenate_all_sequences(app.session, root, force))
     
 
 @shaneao.command()

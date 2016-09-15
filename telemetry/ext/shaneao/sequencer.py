@@ -224,8 +224,7 @@ def get_data_sizes(cseq):
     if na > na_simple:
         hybrid_mode = HYBRID_MODES[cseq.get("hybrid_mode", "p")]
         if (na - na_simple) % 1024 != 0:
-            print(cseq)
-            raise ValueError("We have a size problem... na={:d}, expected extra multiples of 1024".format(na))
+            raise ValueError("We have a size problem... na={:d} ({:d}), expected extra multiples of 1024".format(na, na-na_simple))
         n_intermediate = (na - na_simple) // 1024
         if n_intermediate >= 1:
             sizes[hybrid_mode] = (32, 32)
