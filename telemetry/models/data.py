@@ -146,7 +146,7 @@ class Dataset(Base):
     sequence = Column(Integer, doc="Dataset sequence number.")
     created = Column(DateTime, doc="Creation datetime.")
     date = Column(Date, doc="Creation date (UT)")
-    valid = Column(Boolean, doc="Is this dataset valid?")
+    valid = Column(Boolean, doc="Is this dataset valid?", default=True)
     error_message = Column(Unicode, doc="Error message from opening this file.")
     
     # Data parameters which are universal.
@@ -163,6 +163,8 @@ class Dataset(Base):
         """Validate created."""
         if isinstance(value, numbers.Number):
             return datetime.datetime.fromtimestamp(value)
+        elif value is None:
+            value = datetime.datetime.now()
         return value
     
     @validates('date')
@@ -221,7 +223,7 @@ class Dataset(Base):
         
         for key in g.keys():
             if isinstance(g[key], h5py.Dataset):
-                self.nsamples = g[key].shape[-1]
+                self.nsamples = max(self.nsamples or 0, g[key].shape[-1])
         
         while len(keys):
             key = keys.popleft()
@@ -242,6 +244,8 @@ class Dataset(Base):
                 
         if verify:
             g.visititems(self._validate_h5py_item_visitor)
+            if self.nsamples == 0:
+                raise ValueError("Dataset has no samples.")
         
         return
         
@@ -273,15 +277,13 @@ class Dataset(Base):
         if not isinstance(filename, six.text_type):
             filename = filename.decode('utf-8')
         attrs['filename'] = filename
-        attrs['date'] = None
-        
+        attrs['created'] = datetime.datetime.now()
         for key in attrs:
             if isinstance(attrs[key], np.bool_):
                 attrs[key] = bool(attrs[key])
         
         dataset = cls(**attrs)
         dataset.set_date()
-        dataset.update_h5py_group(session, g)
         return dataset
     
     def __repr__(self):
