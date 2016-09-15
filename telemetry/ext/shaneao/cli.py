@@ -43,7 +43,7 @@ def upgrade(paths, quiet, verbose, force, limit):
 @click.option('--verbose/--not-verbose', default=False, help="Make output verbose")
 @click.option('--continuous/--not-continuous', default=False, help="Continuous ")
 def download(verbose=False, continuous=False):
-    """Download data."""
+    """Download data from the ShaneAO remote data server."""
     if verbose:
         lumberjack.setup_logging(mode='stream', level=1)
     else:
@@ -90,11 +90,20 @@ def concatenate(progress, force):
         root = os.path.join(app.config['TELEMETRY_ROOTDIRECTORY'], "ShaneAO")
         progress(retrieve.concatenate_all_sequences(app.session, root, force))
     
+
+@shaneao.command()
+@CeleryProgressGroup.decorate
+@click.option("--force/--no-force", default=False, help="Force the update.")
+def include(progress, force):
+    """Generate datasets which go with sequences."""
+    with app.app_context():
+        progress(retrieve.generate_all_datasets(app.session, force))
+
 @shaneao.command()
 @CeleryProgressGroup.decorate
 @click.option("--force/--no-force", default=False, help="Force the update.")
 def load(progress, force=False):
-    """Load ShaneAO data."""
+    """Load all available ShaneAO data from the telemetry root directory."""
     root = os.path.join(app.config['TELEMETRY_ROOTDIRECTORY'], "ShaneAO")
     progress(retrieve.load.si(root=root, date=directory.split(os.path.sep)[-1], force=force) for directory in glob.iglob(os.path.join(root, "*")) if os.path.isdir(directory))
     

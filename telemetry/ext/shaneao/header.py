@@ -39,6 +39,7 @@ SHANEAO_HEADER_VALUES = [
     ('UPLINK_E', 'uplink_enabled', bool),
     ('HYBRIDCM', 'hybrid_matrix', str),
     ("KALMAN_B", 'hybrid_bleed', float),
+    ("CENTREG", "wfs_cent_reg", float),
 ]
 
 def get_created_datetime(header):

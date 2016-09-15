@@ -16,6 +16,7 @@ import six
 import json
 import time
 import datetime
+import collections
 
 __all__ = ['ShaneAOMetadata', 'ShaneAODataFrame']
 
@@ -36,8 +37,6 @@ class ShaneAODataSequence(Base):
     def manager(self):
         """The sizes of various components."""
         attrs = self.sequence_attributes
-        if len(sequence.frames):
-            attrs['created'] = time.mktime(sequence.frames[0].created.timetuple())
         return TelemetrySequence(attrs)
         
     def add(self, frame):
@@ -99,7 +98,7 @@ class ShaneAODataFrame(Base):
         kwargs = {}
         
         kwargs['filename'] = filename
-        kwargs['header'] = json.dumps(header.items())
+        kwargs['header'] = json.dumps(collections.OrderedDict(header.items()))
         kwargs['length'] = header['NAXIS2'] - 1
         kwargs['sequence_json'], kwargs['created'] = cls.json_from_fits(header)
         return cls(**kwargs)
@@ -136,6 +135,7 @@ class ShaneAOInfo(DatasetInfoBase):
     
     wfs_rate = Column(Float)
     wfs_centroid = Column(String)
+    wfs_cent_reg = Column(Float)
     wfs_camera_state = Column(String)
     
     gain = Column(Float)
