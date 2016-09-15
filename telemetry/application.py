@@ -5,6 +5,7 @@ from celery import Celery
 import sqlalchemy
 from sqlalchemy.orm import scoped_session, sessionmaker
 import os, socket
+import redis as redispy
 
 def prepare_celery(app):
     """Set up celery for this application."""
@@ -22,6 +23,11 @@ def prepare_celery(app):
             if self._session is None:
                 self._session = scoped_session(sessionmaker(bind=app.engine))
             return self._session
+            
+        @property
+        def redis(self):
+            """Get a redis client which is appropriate."""
+            return app.redis
         
         def after_return(self, *args, **kwargs):
             if self._session is not None:
@@ -61,6 +67,10 @@ def prepare_sqlalchemy(app):
     app.metadata = Base.metadata
     return app.metadata
     
+
+def prepare_redis(app):
+    """Prepare REDIS connection."""
+    return redispy.Redis.from_url(app.config['CELERY_RESULT_BACKEND'])
 
 def prepare_entrypoints(app):
     """Prepare entrypoints."""
@@ -103,6 +113,14 @@ class TelemetryFlask(Flask):
         if self._celery is None:
             self._celery = prepare_celery(self)
         return self._celery
+    
+    _redis = None
+    @property
+    def redis(self):
+        """Make redis client"""
+        if self._redis is None:
+            self._redis = prepare_redis(self)
+        return self._redis
     
 def get_instance_path():
     """Get the instance path."""
