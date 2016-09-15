@@ -51,6 +51,7 @@ def read(self, filename, force=False):
             dataset = Dataset.from_h5py_group(self.session, f['telemetry'])
             metadata = DatasetInfoBase.from_mapping(dataset, f['telemetry'].attrs, instrument=instrument.metadata_type)
             dataset.instrument = instrument
+            dataset.update_h5py_group(self.session, f['telemetry'])
             self.session.add(metadata)
     dataset.update(self.session)
     self.session.add(dataset)
@@ -64,6 +65,7 @@ def refresh(self, dataset_id, validate=False):
         dataset.validate()
     else:
         dataset.update()
+    self.session.add(dataset)
     self.session.commit()
     return dataset.id
     
