@@ -28,9 +28,9 @@ def progress(resultset):
     with ProgressBar(len(resultset)) as pbar:
         pbar.update(0)
         while not resultset.ready():
-            pbar.update(resultset.completed_count())
+            pbar.update(sum(int(result.ready()) for result in resultset))
             time.sleep(0.1)
-        pbar.update(resultset.completed_count())
+        pbar.update(sum(int(result.ready()) for result in resultset))
     return
     
 @click.group()
@@ -170,6 +170,12 @@ class CeleryProgressGroup(ClickGroup):
             except KeyboardInterrupt:
                 click.echo("Tasks will not be revoked.")
                 raise
+            else:
+                click.echo("Completed {:d} tasks: {:d} successes, {:d} failures.".format(
+                    sum(int(result.ready()) for result in r),
+                    sum(int(result.successful()) for result in r), 
+                    sum(int(result.failed()) for result in r)
+                ))
             return r
         
     @classmethod
