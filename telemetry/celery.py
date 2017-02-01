@@ -39,8 +39,11 @@ def check():
         click.echo("{0:s}: {1!s}".format(click.style("ImportError", fg='red'),e))
         return False
     else:
+        if d is None:
+            click.secho("NO WORKERS FOUND", fg='red')
+            return 1
         for worker, v in d.items():
             click.secho("{0:s}:".format(worker), fg='green')
             click.echo("  pid: {pid:d}".format(**v))
             click.echo("  processes: {:s}".format(",".join("{:d}".format(p) for p in v['pool']['processes'])))
-        return True
+        return 0
