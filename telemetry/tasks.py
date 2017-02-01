@@ -47,12 +47,13 @@ def read(self, filename, force=False):
         self.session.delete(dataset)
     if force or (dataset is None):
         log.info("Opening {0}".format(filename))
-        with h5py.File(filename, mode='r') as f:
-            dataset = Dataset.from_h5py_group(self.session, f['telemetry'])
-            metadata = DatasetInfoBase.from_mapping(dataset, f['telemetry'].attrs, instrument=instrument.metadata_type)
-            dataset.instrument = instrument
-            dataset.update_h5py_group(self.session, f['telemetry'])
-            self.session.add(metadata)
+        with self.redis.lock(filename, timeout=1000):
+            with h5py.File(filename, mode='r') as f:
+                dataset = Dataset.from_h5py_group(self.session, f['telemetry'])
+                metadata = DatasetInfoBase.from_mapping(dataset, f['telemetry'].attrs, instrument=instrument.metadata_type)
+                dataset.instrument = instrument
+                dataset.update_h5py_group(self.session, f['telemetry'])
+                self.session.add(metadata)
     dataset.update(self.session)
     self.session.add(dataset)
     self.session.commit()
@@ -64,7 +65,7 @@ def refresh(self, dataset_id, validate=False):
     if validate:
         dataset.validate()
     else:
-        dataset.update()
+        dataset.update(redis=self.redis)
     self.session.add(dataset)
     self.session.commit()
     return dataset.id

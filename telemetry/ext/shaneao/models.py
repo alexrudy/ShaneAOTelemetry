@@ -12,11 +12,16 @@ from .sequencer import TelemetrySequence
 
 from astropy.io import fits
 
+import os
 import six
 import json
 import time
+import logging
 import datetime
 import collections
+import contextlib
+
+log = logging.getLogger(__name__)
 
 __all__ = ['ShaneAOMetadata', 'ShaneAODataFrame']
 
@@ -33,11 +38,29 @@ class ShaneAODataSequence(Base):
     def sequence_attributes(self):
         """Sequence attributes as a dictionary."""
         return json.loads(self.sequence_json)
+    
+    @contextlib.contextmanager
+    def manager(self, redis, root, force=False):
+        """A sequence concatenation manager, yielded as a context manager"""
+        manager = TelemetrySequence(self.sequence_attributes)
+        filename = os.path.join(root,"telemetry_{0:04d}.hdf5".format(self.id))
+        lock = redis.lock(filename, timeout=1000)
+        base = os.path.join(root, self.frames[0].created.date().strftime("%Y-%m-%d"), "data")
+        with lock:
+            try:
+                manager.setup(self.id, base, mode="w" if force else "a")
+            except Exception as e:
+                log.error(e)
+                manager.close()
+                manager.setup(self.id, base, mode="w")
+            
+            self.filename = manager.filename
+            
+            try:
+                yield manager
+            finally:
+                manager.close()
         
-    def manager(self):
-        """The sizes of various components."""
-        attrs = self.sequence_attributes
-        return TelemetrySequence(attrs)
         
     def add(self, frame):
         """Expand timeframes for the sequence."""

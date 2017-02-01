@@ -192,14 +192,21 @@ class Dataset(Base):
         self.date = value
     
     @contextlib.contextmanager
-    def open(self):
+    def open(self, redis=None):
         """Open this H5PY file with a group."""
-        with h5py.File(self.filename) as f:
-            g = f[self.h5path]
-            yield g
-            session = object_session(self)
-            if session is not None:
-                self.update_h5py_group(session, g)
+        if redis is not None:
+            lock = redis.lock(self.filename)
+            lock.acquire()
+        try:
+            with h5py.File(self.filename) as f:
+                g = f[self.h5path]
+                yield g
+                session = object_session(self)
+                if session is not None:
+                    self.update_h5py_group(session, g)
+        finally:
+            if redis is not None:
+                lock.release()
     
     def _validate_h5py_item_visitor(self, name, item):
         """A visitor to validate problems in datasets."""
@@ -249,9 +256,9 @@ class Dataset(Base):
         
         return
         
-    def update(self, session=None, verify=False):
+    def update(self, session=None, verify=False, redis=None):
         """Update this HDF5 object."""
-        with self.open() as g:
+        with self.open(redis=redis) as g:
             if session is None:
                 session = object_session(self)
             if session is not None:

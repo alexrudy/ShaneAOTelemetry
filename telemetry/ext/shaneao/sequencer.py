@@ -46,7 +46,10 @@ class TelemetrySequence(object):
         
     def __del__(self):
         """Delete the file, if necessary."""
-        self.close()
+        try:
+            self.close()
+        except ValueError:
+            pass
         
     def close(self):
         """Close the file."""
