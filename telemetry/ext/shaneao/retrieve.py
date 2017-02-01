@@ -65,6 +65,8 @@ def load(self, root, date="*", force=False):
 def generate_dataset(self, sequence_id, force=False):
     """Generate a dataset for this sequence."""
     sequence = self.session.query(ShaneAODataSequence).get(sequence_id)
+    if sequence.filename is None:
+        return -1
     if sequence.dataset is None or force:
         # First, try to repair the match:
         sequence.dataset = self.session.query(Dataset).filter(Dataset.filename == sequence.filename).one_or_none()
@@ -127,34 +129,35 @@ def match_sequence(self, frame_id, maxsep=15, force=False):
         
     self.session.commit()
     self.session.refresh(frame)
-    return frame.sequence.id
+    return frame.id
     
 @app.celery.task(bind=True)
-def concatenate_sequence(self, seq_id, root=".", force=False):
+def append_sequence(self, frame_id, root=None, force=False):
+    """Append a frame to a sequence."""
+    frame = self.session.query(ShaneAODataFrame).get(frame_id)
+    sequence = frame.sequence
+    root = root or os.path.join(app.config['TELEMETRY_ROOTDIRECTORY'], "ShaneAO")
+    # Short out on a few common problems.
+    if sequence is None:
+        raise ValueError("Can't locate sequence to append frame.")
+    if frame.included and not force:
+        return frame.sequence.id
+    
+    with sequence.manager(self.redis, root, force=force) as manager:
+        if manager.append_from_fits(frame.filename):
+            log.info("{}:{}".format(os.path.basename(frame.filename), frame.created))
+        frame.included = True
+    self.session.add(frame)
+    self.session.add(sequence)
+    self.session.commit()
+    return frame.sequence.id
+
+@app.celery.task(bind=True)
+def concatenate_sequence(self, seq_id, root=None, force=False):
     """Concatenate a telemetry sequence."""
+    root = root or os.path.join(app.config['TELEMETRY_ROOTDIRECTORY'], "ShaneAO")
     sequence = self.session.query(ShaneAODataSequence).get(seq_id)
-    lock = self.redis.lock("ShaneAODataSequence{:d}".format(sequence.id), timeout=1000)
-    acquired = lock.acquire(blocking=False)
-    if not acquired:
-        print("File was locked, giving up.")
-        return sequence.id
-    try:
-        try:
-            manager = sequence.manager()
-        except ValueError as e:
-            log.error(e)
-            print("Manager failed, giving up.")
-            return sequence.id
-        if not len(sequence.frames):
-            attrs['created'] = time.mktime(sequence.frames[0].created.timetuple())
-        base = os.path.join(root, sequence.frames[0].created.date().strftime("%Y-%m-%d"), "data")
-        try:
-            manager.setup(sequence.id, base, mode="w" if force else "a")
-        except Exception as e:
-            log.error(e)
-            manager.close()
-            manager.setup(sequence.id, base, mode="w")
-        print("Concatenating to {:s}".format(manager.filename))
+    with sequence.manager(self.redis, root, force=force) as manager:
         sequence.filename = manager.filename
         self.session.add(sequence)
         for frame in sequence.frames:
@@ -166,19 +169,31 @@ def concatenate_sequence(self, seq_id, root=".", force=False):
             frame.included = True
             self.session.add(frame)
         self.session.commit()
-    finally:
-        lock.release()
     return sequence.id
+
+@app.celery.task
+def unique(*ids):
+    """Return only the unique ids."""
+    return sorted(list(set(ids)))
+
+def new_files_to_sequence(session, filepath, root=None, force=False):
+    """Given a path to search for new files, yeild only tasks which apply to new files."""
+    for filename in glob.iglob(os.path.join(filepath, '*.fits')):
+        n = session.query(ShaneAODataFrame).filter(ShaneAODataFrame.filename == filename.decode('utf-8')).count()
+        if n == 0:
+            yield new_file_to_sequence(filename, root, force=force)
+        elif n != 1:
+            print("Multiple file matches found for {:s}".format(filename))
 
 def new_file_to_sequence(filename, root, force=False):
     """Given a filename, return the chain required to ingest the new file."""
-    return (load_single_file.s(filename, force=force) | match_sequence.s(force=force) | concatenate_sequence.s(root=root, force=force) | generate_dataset.s(force=force))
+    return (load_single_file.s(filename, force=force) | match_sequence.s(force=force) | append_sequence.s(force=force))
     
 def concatenate_all_sequences(session, root=".", force=False):
     """Concatenate all sequences."""
     query = session.query(ShaneAODataSequence).outerjoin(ShaneAODataSequence.frames)
     query = query.filter(~ShaneAODataFrame.included)
-    return (concatenate_sequence.si(sequence.id, root=root, force=force) for sequence in query.all())
+    return ((concatenate_sequence.si(sequence.id, root=root, force=force) | generate_dataset.s(force=force)) for sequence in query.all())
 
 def generate_all_datasets(session, force=False):
     """Concatenate all sequences."""

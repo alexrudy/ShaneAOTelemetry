@@ -213,3 +213,13 @@ def make(datasetquery, progress, component, recursive, force):
             progress(generate.si(dataset.id, kind.id, force=force) for dataset in query.all())
     
 
+@cli.command()
+@click.argument("component", type=str)
+@click.option("--recursive/--no-recursive", help="Recursively show data")
+def graph(component, recursive):
+    """Show the dependency graph to make a particular compoennt."""
+    with app.app_context():
+        kind = TelemetryKind.require(app.session, component)
+        if not hasattr(kind, 'generate'):
+            raise click.BadParameter("{0} does not appear to have a .generate() method.".format(kind))
+        print("\n".join((prereq.name for prereq in kind.rprerequisites)))

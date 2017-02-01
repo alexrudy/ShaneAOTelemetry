@@ -82,7 +82,8 @@ def new(progress, path=None, force=False):
         if not os.path.exists(path):
             path = os.path.join(root, 'raw', '{:%Y-%m-%d}'.format((datetime.datetime.now() - datetime.timedelta(days=1)).date()))
     click.echo("Searching '{}'".format(path))
-    progress(retrieve.new_file_to_sequence(p, root, force=force) for p in glob.iglob(os.path.join(path,"*.fits")))
+    with app.app_context():
+        progress(retrieve.new_files_to_sequence(app.session, path, root, force=force))
     
 @shaneao.command()
 def purge_sequences():
@@ -107,6 +108,15 @@ def concatenate(progress, force, id=None):
         else:
             progress(retrieve.concatenate_all_sequences(app.session, root, force))
     
+
+@shaneao.command()
+@CeleryProgressGroup.decorate
+@click.option("--force/--no-force", default=False, help="Force the update.")
+def match(progress, force):
+    """Generate datasets which go with sequences."""
+    with app.app_context():
+        query = app.session.query(models.ShaneAODataFrame).filter(models.ShaneAODataFrame.sequence==None)
+        progress(retrieve.match_sequence.si(frame.id, maxsep=1, force=force) for frame in query.all())
 
 @shaneao.command()
 @CeleryProgressGroup.decorate
