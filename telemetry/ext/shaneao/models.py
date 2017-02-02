@@ -67,7 +67,7 @@ class ShaneAODataSequence(Base):
         frame.sequence = self
         self.starttime = min([self.starttime, frame.created])
         self.stoptime = max([self.stoptime, frame.created])
-        
+    
     def __repr__(self):
         """Represent the sequence."""
         return "{0:s}({1:s})".format(
@@ -232,5 +232,17 @@ class ShaneAOInfo(DatasetInfoBase):
         for key in self.SEQUENCE_EXCLUDES:
             attrs.pop(key, None)
         return attrs
+    
+    def h5_attributes(self):
+        """Return a dictionary of acceptable attributes for hdf5"""
+        r = {}
+        for k, v in self.attributes().items():
+            if isinstance(v, (datetime.datetime,)):
+                r[k] = time.mktime(v.timetuple())
+            elif isinstance(v, (datetime.date,)):
+                r[k] = v.toordinal()
+            else:
+                r[k] = v
+        return r
     
 
