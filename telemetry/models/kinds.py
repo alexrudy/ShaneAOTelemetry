@@ -53,8 +53,7 @@ class DerivedTelemetry(TelemetryGenerator):
         """Force the telemetry kind of these objects to be 'periodogram'."""
         return self.POLYMORPHIC_KIND
     
-    @validates('h5path')
-    def validate_h5path(self, key, value):
+    def _validate_name(self, key, value):
         """Ensure that HDF5 paths contain periodogram."""
         if not value.startswith("{}/".format(self.H5PATH_ROOT)):
             value = "{}/".format(self.H5PATH_ROOT) + value

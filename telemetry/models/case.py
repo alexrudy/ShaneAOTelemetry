@@ -124,6 +124,10 @@ class TelemetryKind(Base):
             session.add(kind)
         return kind
     
+    def _validate_name(self, key, value):
+        """Validate name"""
+        return value
+    
     @validates('h5path')
     def validate_name(self, key, value):
         """Validate name."""
@@ -133,7 +137,7 @@ class TelemetryKind(Base):
                 self._kind = value
             else:
                 self._kind = 'base'
-        return value
+        return self._validate_name(key, value)
     
 
 class TelemetryPrerequisite(Base):
