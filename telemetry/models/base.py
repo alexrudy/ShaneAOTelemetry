@@ -25,7 +25,7 @@ class Base(declarative_base()):
     
     def attributes(self, include=set(), exclude=set()):
         """Return a dictionary of attributes."""
-        attrs = dict(self.__dict__)
+        attrs = {column.name:getattr(self,column.name) for column in self.__table__.columns}
         include = set(column.name for column in self.__table__.columns).union(include).union(self.INCLUDE)
         remove = (set(attrs.keys()).difference(include)).union(exclude).union(self.EXCLUDE)
         for key in remove:
