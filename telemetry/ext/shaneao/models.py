@@ -241,6 +241,8 @@ class ShaneAOInfo(DatasetInfoBase):
                 r[k] = time.mktime(v.timetuple())
             elif isinstance(v, (datetime.date,)):
                 r[k] = v.toordinal()
+            elif v is None:
+                continue
             else:
                 r[k] = v
         return r
