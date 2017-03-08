@@ -27,7 +27,7 @@ class TransferFunction(FittableModel):
         return 1.0 - np.exp(self.ln_c.value)
         
     @integrator.setter
-    def set_integrator(self, value):
+    def integrator(self, value):
         """Set the intergrator."""
         self.ln_c.value = np.log(1.0 - value)
     
