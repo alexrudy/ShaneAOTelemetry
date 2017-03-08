@@ -11,15 +11,20 @@ from .model import TransferFunction
 def lnprior(theta):
     """Prior probabilities"""
     tau, gain, integrator = theta
-    if 0.0 < tau < 1.0 and 0.0 < gain < 1.0 and 0.0 < integrator < 1.0:
-        return 0.0
-    return -np.inf
+    if not (0.0 < tau and 0.0 < gain < 1.0 and integrator < 0.0):
+        return -np.inf
+    
+    lp = 0.0
+    
+    # Gaussian around tau = 0.005
+    lp += -np.power((0.005 - tau)/(2.0 * 0.1), 2)
+    return lp
     
 
 def lnlike(theta, x, y, rate, weights):
     """Likelihood for a transfer function."""
     tau, gain, integrator = theta
-    model = TransferFunction.evaluate(x, tau, gain, integrator, rate)
+    model = np.log(TransferFunction.evaluate(x, tau, gain, integrator, rate))
     return - 0.5 * np.sum((y - model) ** 2 * weights)
     
 def lnprob(theta, x, y, rate, weights):
