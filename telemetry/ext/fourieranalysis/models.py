@@ -16,10 +16,14 @@ from telemetry.models.kinds import DerivedTelemetry
 from telemetry.models.case import TelemetryKind
 from .modeling.model import TransferFunction as TransferFunctionModel
 from .modeling.linfit import fit_models
-from .periodogram import periodogram
+from controltheory.periodogram import periodogram
 
 import astropy.units as u
 import numpy as np
+
+from celery.utils.log import get_task_logger
+log = get_task_logger(__name__)
+
 
 __all__ = ['Periodogram', 'TransferFunctionPair', 'TransferFunction', 'TransferFunctionFit']
 
@@ -47,7 +51,8 @@ class Periodogram(DerivedTelemetry):
     def generate(self, dataset, length=1024, **kwargs):
         """Given a dataset, generate a periodogram."""
         data = np.asarray(dataset.telemetry[self.kind].read())
-        pdata = periodogram(data.T, length, **kwargs).T
+        log.info("Making a periodogram out of ({0})".format("x".join(map(str, data.shape))))
+        pdata = periodogram(data, length, axis=-1, **kwargs)
         if not np.isfinite(pdata).all():
             raise ValueError("Periodogram failed, got NaN: {0} shape={1} {2}".format(dataset, data.T.shape,"" if np.isfinite(data).all() else "(dataset contained NaN)"))
         with dataset.open() as g:
