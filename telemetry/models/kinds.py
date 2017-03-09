@@ -9,6 +9,7 @@ from telemetry.algorithms.coefficients import get_cm_projector, get_matrix
 import numpy as np
 import resource
 from celery.utils.log import get_task_logger
+log = get_task_logger(__name__)
 
 __all__ = ['TelemetryGenerator', 'SlopeVectorX', 'SlopeVectorY', 
     'HCoefficients', 'HEigenvalues', 'PseudoPhase', 'FourierCoefficients', 'PhaseToH', 'HwCoefficients']
@@ -17,6 +18,11 @@ def memory():
     """Get memory usage as a string."""
     from astropy.utils.console import human_file_size
     return human_file_size(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
+
+def shape_str(shape):
+    """Shape string"""
+    return "({0})".format("x".join(map(str, shape)))
+    
 
 class TelemetryGenerator(TelemetryKind):
     
@@ -120,9 +126,10 @@ class MatrixTransform(TelemetryGenerator):
     
     def _apply_matrix(self, s, m):
         """Apply the matrix."""
-        log = get_task_logger(__name__)
         coeffs = m.dot(s)
         coeffs = coeffs.view(np.ndarray)
+        log.info("Matrix Multiply {0} x {1} -> {2}".format(shape_str(m.shape),
+                 shape_str(s.shape), shape_str(coeffs.shape)))
         return coeffs
     
     def generate(self, dataset):
@@ -167,6 +174,15 @@ class PseudoPhase(MatrixTransform):
         
     MATRIX = "L"
     OUTPUT_SHAPE = (32, 32, -1)
+    
+    def _get_source(self, dataset):
+        """Get the source from a dataset."""
+        source = dataset.telemetry[self.SOURCE].read()
+        if dataset.instrument.name == 'shadyao':
+            if source.shape[-1] > 288:
+                source = source[:,:288].T
+        log.info("Making a pseudophase out of ({0})".format("x".join(map(str, source.shape))))        
+        return source
 
 class PhaseToH(MatrixTransform):
     """Pseudophase, generated from WFS slopes."""

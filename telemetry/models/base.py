@@ -5,6 +5,8 @@ from sqlalchemy.orm import validates
 from sqlalchemy import Column, Unicode, Integer, Boolean
 import h5py
 import os
+import time
+import datetime
 import numpy as np
 
 __all__ = ['Base', 'File']
@@ -31,6 +33,20 @@ class Base(declarative_base()):
         for key in remove:
             attrs.pop(key, None)
         return attrs
+    
+    def h5_attributes(self, include=set(), exclude=set()):
+        """Return a dictionary of acceptable attributes for hdf5"""
+        r = {}
+        for k, v in self.attributes(include=include, exclude=exclude).items():
+            if isinstance(v, (datetime.datetime,)):
+                r[k] = time.mktime(v.timetuple())
+            elif isinstance(v, (datetime.date,)):
+                r[k] = v.toordinal()
+            elif v is None:
+                continue
+            else:
+                r[k] = v
+        return r
     
     def __repr__(self):
         """Default representation."""

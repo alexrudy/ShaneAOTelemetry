@@ -35,13 +35,21 @@ def read_path(path, force=False):
     return group(read.si(fileanme, force) for filename in files)
 
 @app.celery.task(bind=True)
-def read(self, filename, force=False):
+def read(self, filename, instrument_name=None, force=False):
     """Given a directory, read it, looking for new datasets."""
     if not isinstance(filename, six.text_type):
         filename = filename.decode('utf-8')
-        
-    path_parts = os.path.abspath(filename).split(os.path.sep)
-    instrument = Instrument.require(self.session, path_parts[-4])
+    filename = os.path.abspath(filename)
+    
+    path_parts = filename.split(os.path.sep)
+    path_root = os.path.abspath(app.config['TELEMETRY_ROOTDIRECTORY'])
+    if instrument_name is None:
+        if filename.startswith(path_root):
+            n_parts = len(path_root.split(os.path.sep))
+            instrument_name = path_parts[n_parts]
+        else:
+            instrument_name = path_parts[-4]
+    instrument = Instrument.require(self.session, instrument_name)
     dataset = self.session.query(Dataset).filter(Dataset.filename == filename).one_or_none()
     if force and (dataset is not None):
         self.session.delete(dataset)
@@ -49,6 +57,9 @@ def read(self, filename, force=False):
         log.info("Opening {0}".format(filename))
         with self.redis.lock(filename, timeout=1000):
             with h5py.File(filename, mode='r') as f:
+                if 'telemetry' not in f:
+                    log.error("Expected to find a '/telemetry' group. Found [{0}]".format(",".join(f.keys())))
+                    raise KeyError('telemetry')
                 dataset = Dataset.from_h5py_group(self.session, f['telemetry'])
                 metadata = DatasetInfoBase.from_mapping(dataset, f['telemetry'].attrs, instrument=instrument.metadata_type)
                 dataset.instrument = instrument
@@ -57,6 +68,7 @@ def read(self, filename, force=False):
     dataset.update(self.session)
     self.session.add(dataset)
     self.session.commit()
+    return dataset.id
 
 @app.celery.task(bind=True)
 def refresh(self, dataset_id, validate=False):

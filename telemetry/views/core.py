@@ -11,8 +11,8 @@ __all__ = ['save_ax_telemetry', 'construct_filename', 'telemetry_plotting_task']
 def construct_filename(telemetry, category, folder='figures', ext='png'):
     """Construct a filename."""
     filename = os.path.join(telemetry.dataset.path, 
-        folder, "s{0:04d}".format(telemetry.dataset.sequence), telemetry.kind.h5path.replace("/", "."), 
-        "{0:s}.s{1:04d}.{2:s}.{3:s}".format(category, telemetry.dataset.sequence, 
+        folder, "s{0:04d}".format(telemetry.dataset.id), telemetry.kind.h5path.replace("/", "."), 
+        "{0:s}.s{1:04d}.{2:s}.{3:s}".format(category, telemetry.dataset.id, 
         telemetry.kind.h5path.replace("/", "."), ext))
     
     if not os.path.isdir(os.path.dirname(filename)):

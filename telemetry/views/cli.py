@@ -29,13 +29,13 @@ def plotting_command(name, task, **kwargs):
     @group.command(name=name)
     @decorate_plotting_command
     def _command(datasetquery, progress, component, force):
-        """Make {0} plots""".format(name)
         with app.app_context():
             kind = TelemetryKind.require(app.session, component_name_transform(component))
             datasets = datasetquery(app.session).join(Dataset.kinds).filter(TelemetryKind.id == kind.id)
             if not datasets.count():
                 click.echo("No datasets to plot with {0}".format(kind))
             progress(task.si(dataset.id, kind.id, force=force, **kwargs) for dataset in datasets.all())
+    _command.__doc__ = task.__doc__
     return _command
     
 

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+import h5py
 import contextlib
 import collections
 
@@ -95,6 +96,8 @@ class TelemetryKind(Base):
     
     def read(self, dataset):
         """Read from the HDF5 file."""
+        if isinstance(dataset, h5py.Group):
+            return dataset['data'][...]
         return dataset[...]
     
     @property
