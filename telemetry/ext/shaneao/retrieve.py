@@ -11,6 +11,7 @@ import json
 import numpy as np
 import celery
 import h5py
+import click
 
 from telemetry.application import app
 from celery.utils.log import get_task_logger
@@ -66,6 +67,7 @@ def generate_dataset(self, sequence_id, force=False):
     """Generate a dataset for this sequence."""
     sequence = self.session.query(ShaneAODataSequence).get(sequence_id)
     if sequence.filename is None:
+        log.debug("No filename found for sequence {0:d}".format(sequence.id))
         return -1
     if sequence.dataset is None or force:
         # First, try to repair the match:
@@ -223,7 +225,7 @@ def latest_remote_telemetry_date():
     dates.sort()
     return dates[-1]
 
-def rsync_telemetry(destination=".", date=None):
+def rsync_telemetry(destination=".", date=None, extension='.fits'):
     """Launch an RSYNC of data."""
     if date is None:
         date = latest_remote_telemetry_date()
@@ -237,9 +239,13 @@ def rsync_telemetry(destination=".", date=None):
     if not destination.endswith(os.path.sep):
         destination = destination + os.path.sep
     # Subprocess arguments for RSYNC
+    telpath = os.path.join(app.config['SHANEAO_TELEMETRY_PATH'], "{date:s}", "*{extension:s}").format(
+        date = date, extension = extension
+    )
+    
     args = ['rsync', '-avP',
-        '{host:s}:telemetry/{date:s}/*.fits'.format(host=app.config['SHANEAO_TELEMETRY_HOST'], date=date),
-        destination ]
-    print(" ".join(args))
+            '{host:s}:{telpath:s}'.format(host=app.config['SHANEAO_TELEMETRY_HOST'], telpath=telpath),
+            destination ]
+    click.echo(" ".join(args))
     return subprocess.Popen(args)
     
