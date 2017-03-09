@@ -14,7 +14,7 @@ from celery import group
 from .cli import cli, CeleryProgressGroup, ClickError, ClickGroup
 from .tasks import read as read_task, refresh as refresh_task, rgenerate, generate
 from .application import app
-from .models import Base, Dataset, TelemetryKind, TelemetryPrerequisite
+from .models import Base, Dataset, TelemetryKind, TelemetryPrerequisite, Instrument
 from .models import (SlopeVectorX, SlopeVectorY, HCoefficients, 
     PseudoPhase, FourierCoefficients, HEigenvalues, PhaseToH, HwCoefficients)
 
@@ -39,6 +39,9 @@ class DatasetQuery(ClickGroup):
             start = (self.date - datetime.timedelta(days=1))
             end = (self.date + datetime.timedelta(days=1))
             q = q.filter(Dataset.date.between(start, end))
+        if self.instrument is not None:
+            click.echo("Selecting only datasets from '{0:s}'".format(self.instrument))
+            q = q.join(Dataset.instrument).filter(Instrument.name == self.instrument)
         if order:
             q = q.order_by(Dataset.created)
         return q
@@ -55,6 +58,7 @@ class DatasetQuery(ClickGroup):
         """docstring for decorate"""
         func = cls.option("--date", default=None, type=cls.validate_date,
             name="date", help="Limit the query to a specific date.", envvar='TELEM_DATE')(func)
+        func = cls.option("--instrument", default=None, type=str, help="Instrument Name", name='instrument')(func)
         func = cls.option("--id", default=None, type=int, help="Dataset ID", name='dataset_id')(func)
         func = super(DatasetQuery, cls).decorate(func)
         return func
@@ -133,15 +137,16 @@ def show(datasetquery):
         query = datasetquery(app.session).order_by(Dataset.created)
         if query.count() == 0:
             raise ClickError("No records found.")
-        keys = ["created", "sequence", "rate", "closed", "gain", "bleed"]
+        keys = ["created", "sequence", "rate", "closed", "gain", "bleed", "id"]
         t = Table([d.attributes() for d in query.all()])
         t[keys].more()
 
 @cli.command()
 @CeleryProgressGroup.decorate
+@click.option("--instrument", type=str, help="Instrument Name", default=None)
 @click.option("--force/--no-force", help="Force the read.", default=False)
-@click.argument("paths", nargs=-1, type=click.Path(exists=True))
-def read(progress, paths, force):
+@click.argument("paths", nargs=-1, type=click.Path(exists=False))
+def read(progress, paths, instrument, force):
     """read data into the database."""
     with app.app_context():
         if not paths:
@@ -149,7 +154,7 @@ def read(progress, paths, force):
         print(",".join("{0}".format(path) for path in paths))
         paths = (os.path.expanduser(os.path.join(os.path.splitext(path)[0], '*.hdf5')) for path in paths)
         paths = itertools.chain.from_iterable(glob.iglob(path) for path in paths)
-        progress(read_task.si(filename, force=force) for filename in paths)
+        progress(read_task.si(filename, instrument_name=instrument, force=force) for filename in paths)
         
     
 

@@ -35,7 +35,7 @@ def progress(resultset):
     
 @click.group()
 def cli():
-    lumberjack.setup_logging(mode='stream', level=logging.INFO)
+    lumberjack.setup_logging(mode='stream', level=logging.DEBUG)
     click.secho("Connected to {0}".format(app.config['SQLALCHEMY_DATABASE_URI']), fg='blue')
     log.info("Set up logging.")
     
