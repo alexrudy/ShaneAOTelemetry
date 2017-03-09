@@ -16,7 +16,11 @@ def show_periodogram(ax, periodogram, rate=1.0, **kwargs):
     """Show a periodogram on an axis."""
     
     periodogram = np.asarray(periodogram)
-    rate = u.Quantity(rate, u.Hz)
+    try:
+        rate = u.Quantity(rate, u.Hz)
+    except TypeError:
+        rate = 1.0 * u.Hz
+    
     lim = np.max(rate).value / 2.0
     
     if periodogram.ndim != 1:
@@ -52,11 +56,17 @@ def powerspectrum_plot(ax, periodogram, **kwargs):
     data = periodogram.read()
     length = data.shape[-1]
     data = data.reshape((-1, length))
-    show_periodogram(ax, data.T, rate=periodogram.dataset.rate, color='k', alpha=0.05)
+    
+    try:
+        rate = u.Quantity(periodogram.dataset.rate, u.Hz)
+    except TypeError:
+        rate = 1.0 * u.Hz
+    
+    show_periodogram(ax, data.T, rate=rate, color='k', alpha=0.05)
     datam = data.mean(axis=0)
-    show_periodogram(ax, datam, rate=periodogram.dataset.rate, color='k', label=r"$\mathrm{{{}}}$".format(periodogram.kind.kind.capitalize()))
-    show_periodogram(ax, datam, rate=periodogram.dataset.rate, label=r"$|\mathrm{{{}}}|$".format(periodogram.kind.kind.capitalize()))
-    freq = frequencies(length, u.Quantity(periodogram.dataset.rate, u.Hz))
+    show_periodogram(ax, datam, rate=rate, color='k', label=r"$\mathrm{{{}}}$".format(periodogram.kind.kind.capitalize()))
+    show_periodogram(ax, datam, rate=rate, label=r"$|\mathrm{{{}}}|$".format(periodogram.kind.kind.capitalize()))
+    freq = frequencies(length, rate)
     peg_idx = np.argmin(np.abs(freq - 5.0 * u.Hz))
     peg_freq = freq[peg_idx]
     peg_amp = datam[peg_idx]
@@ -66,7 +76,7 @@ def powerspectrum_plot(ax, periodogram, **kwargs):
     ax.legend(loc='best')
     ax.set_title('{0:s} Power Spectrum for {1:s}'.format(periodogram.kind.kind.capitalize(), periodogram.dataset.title()))
     ax.set_xscale('log')
-    ax.set_xlim(periodogram.dataset.rate / (2.0 * length), periodogram.dataset.rate / 2.0)
+    ax.set_xlim(rate.value / (2.0 * length), rate.value / 2.0)
     if np.min(data) < 1e-10:
         ax.set_ylim(np.min(data[data > 1e-10]), np.max(data))
     
