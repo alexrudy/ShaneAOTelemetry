@@ -4,5 +4,5 @@ if [ $# -gt 0 ]; then
     celery -A telemetry.celery multi stop 2 --pidfile=celery/run/%n.pid
 else
     echo "restarting"
-    celery -A telemetry.celery multi restart 2 -linfo --pidfile=celery/run/%n.pid --autoreload --logfile=celery/log/%n.log -c 2
+    celery -A telemetry.celery multi restart 2 -linfo --pidfile=celery/run/%n.pid --logfile=celery/log/%n.log -c 2
 fi
