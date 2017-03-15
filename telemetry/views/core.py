@@ -48,19 +48,18 @@ def telemetry_plotting_task(**default_kwargs):
     
     @functools.wraps(telemetry_plotting_task)
     def decorator(f):
+        
         @app.celery.task(bind=True)
         @functools.wraps(f)
         def _plot_task(self, dataset_id, component_id, **kwargs):
             import matplotlib
             matplotlib.use("Agg")
-            import seaborn
-            seaborn.set()
             dataset = self.session.query(Dataset).get(dataset_id)
             component = self.session.query(TelemetryKind).get(component_id)
             telemetry = dataset.telemetry[component.h5path]
             for key, value in default_kwargs.items():
                 kwargs.setdefault(key, value)
             return save_ax_telemetry(telemetry, f, **kwargs)
-        
         return _plot_task
+    
     return decorator

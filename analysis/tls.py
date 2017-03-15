@@ -13,6 +13,8 @@ def state(h5group):
 
 def parse_dt(value):
     """Return date"""
+    if isinstance(value, dt.date):
+        return value
     return dt.datetime.strptime(value, "%Y-%m-%d").date()
     
 @click.command()
@@ -30,7 +32,7 @@ def main(root, date):
         try:
             with h5py.File(fn, 'r') as f:
                 g = f['telemetry']['slopes']
-                click.echo("{} Rate: {} Loop: {:10s} TGain: {} WGain: {} TBleed: {} WBleed: {} Alpha: {} n={}".format(
+                click.echo("{} Rate: {} Loop: {} TGain: {} WGain: {} TBleed: {} WBleed: {} Alpha: {} n={}".format(
                     os.path.basename(fn),
                     g.attrs['WFSCAMRATE'], g.attrs['LOOPSTATE'], 
                     g.attrs['TWEETERGAIN'], g.attrs['WOOFERGAIN'],

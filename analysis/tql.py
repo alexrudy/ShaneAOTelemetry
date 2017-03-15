@@ -5,6 +5,8 @@ import click
 import os
 os.chdir(os.path.expanduser("~/Development/ShaneAO/ShWLSimulator"))
 from os.path import join as pjoin
+import functools
+import inspect
 
 import matplotlib
 matplotlib.use('Agg')
@@ -49,9 +51,10 @@ def configure():
 
 class TelemetryContainer(collections.MutableMapping):
     """A telemetry container"""
-    def __init__(self, group):
+    def __init__(self, group, n):
         super(TelemetryContainer, self).__init__()
         self.group = group
+        self.n = n
         self._cache = {}
         
     def __iter__(self):
@@ -102,18 +105,55 @@ def topen(root, date, n, mode='r'):
     path = pjoin(root, "{date:%Y-%m-%d}", "telemetry_{n:04d}.hdf5").format(date=date, n=n)
     with h5py.File(path, mode) as f:
         t = f['telemetry']
-        yield TelemetryContainer(t)
+        yield TelemetryContainer(t, n)
         
 @contextlib.contextmanager
 def tboth(root, date, ncl, nol, mode='r'):
     """Open both."""
     with topen(root, date, ncl, mode) as tcl:
         with topen(root, date, nol, mode) as tol:
-            if tcl.group['slopes'].attrs.get("LOOPSTATE","") != "Closing":
+            if tcl.group['slopes'].attrs.get("LOOPSTATE","") not in ("Closing", 1):
                 click.secho("Closed loop loopstate={0}".format(tcl.group['slopes'].attrs.get("LOOPSTATE","")), fg='yellow')
-            if tol.group['slopes'].attrs.get("LOOPSTATE","") != "Open":
+                if not click.confirm('Are you sure?'):
+                    raise click.Abort()
+            if tol.group['slopes'].attrs.get("LOOPSTATE","") not in ("Open", 0):
                 click.secho("Open loop loopstate={0}".format(tol.group['slopes'].attrs.get("LOOPSTATE","")), fg='yellow')
+                if not click.confirm('Are you sure?'):
+                    raise click.Abort()
             yield (tcl, tol)
+
+def plot(key, extension="png"):
+    """A plot function decorator"""
+    def decorator(f):
+        """A decorator for the plot function."""
+        argspec = inspect.getargspec(f)
+        defaults = dict(zip(argspec.args[-len(argspec.defaults):], argspec.defaults))
+        default_kind = defaults.get('kind', None)
+        @functools.wraps(f)
+        def dotheplot(openloop, closedloop, **kwargs):
+            date = kwargs.pop('date')
+            ext = kwargs.pop('extension', extension)
+            kind = kwargs.setdefault('kind', default_kind)
+            index = kwargs.get('index', None)
+            subdir = kwargs.pop('subdir', False)
+            figure = f(openloop, closedloop, **kwargs)
+            
+            parts = ["{date:%Y-%m-%d}","C{closedloop.n:04d}","O{openloop.n:04d}","{kind:s}", "{key:s}", "{index:s}"]
+            basename = "{0}.{{ext:s}}".format("-".join(parts))
+            path = pjoin("{date:%Y-%m-%d}", "C{closedloop.n:04d}-O{openloop.n:04d}")
+            if subdir:
+                path = pjoin(path, subdir)
+            path = pjoin(path, basename)
+            
+            name = path.format(date=date, closedloop=closedloop, openloop=openloop, 
+                               kind=kind, key=key, index=index_label(index), ext=ext)
+            if not os.path.isdir(os.path.dirname(name)):
+                os.makedirs(os.path.dirname(name))
+            click.echo("--> Saving {0} for {1} to '{2}'".format(key, kind, name))
+            figure.savefig(name)
+            plt.close(figure)
+        return dotheplot
+    return decorator
 
 def generate_pseudophase(group):
     """Extract pseudophase from an h5group"""
@@ -138,7 +178,7 @@ def add_figlabel(fig, openloop, closedloop):
     if matplotlib.rcParams['text.usetex']:
         olfn = r'\verb+{}+'.format(olfn)
         clfn = r'\verb+{}+'.format(clfn)
-    text = ["Open: {}".format(olfn), "Closed: {}".format(clfn)]
+    text = ["Closed: {}".format(clfn), "Open: {}".format(olfn)]
     try:
         g = closedloop.group['slopes']
         l = ", ".join("${}={}$".format(label, g.attrs.get(attr,"?")) for label, attr in attributes_to_label)
@@ -147,7 +187,8 @@ def add_figlabel(fig, openloop, closedloop):
         pass
     fig.text(0.01, 0.99, "\n".join(text), va='top', ha='left', fontsize='small')
 
-def plot_timeline(openloop, closedloop):
+@plot("Timeline")
+def plot_timeline(openloop, closedloop, kind='pseudophase'):
     """Plot timeline of data from pseudophase and intensity."""
     gs = mgrid.GridSpec(2, 2, width_ratios=[1.0, 0.2], wspace=0.1)
     fig = plt.figure()
@@ -160,8 +201,8 @@ def plot_timeline(openloop, closedloop):
         ax.ticklabel_format(style='plain')
     
     # Grab data
-    ost, opp = openloop['pseudophase']
-    cst, cpp = closedloop['pseudophase']
+    ost, opp = openloop[kind]
+    cst, cpp = closedloop[kind]
     
     
     add_figlabel(fig, openloop, closedloop)
@@ -174,15 +215,20 @@ def plot_timeline(openloop, closedloop):
     plt.setp(ax_hp.get_yticklabels(), visible=False)
 
     # Timelines
-    for (x,y) in ((10,10), (20,10), (10, 20), (20, 20)):
-        ax_p.plot(ost, opp[x,y], color=ol_color, alpha=0.5)
-        ax_p.plot(cst, cpp[x,y], color=cl_color, alpha=0.5)
-    ax_p.set_ylabel("Phase")
+    if ost.ndim == 3:
+        indexes = ((10,10), (20,10), (10, 20), (20, 20))
+    else:
+        indexes = [3, 5, 10, 20]
+    
+    for index in indexes:
+        ax_p.plot(ost, opp[index], color=ol_color, alpha=0.5)
+        ax_p.plot(cst, cpp[index], color=cl_color, alpha=0.5)
+    ax_p.set_ylabel("{0}".format(kind.capitalize()))
     
     try:
         oit, ointen = openloop['intensity']
     except KeyError:
-        pass
+        ax_i.text(0.01, 0.01, "No open loop intensity data.", transform=ax_i.transAxes, va='bottom')
     else:
         _, bins, _ = ax_hi.hist(ointen.flatten(), 30, orientation='horizontal', alpha=0.5, normed=True)
         for s in [10, 20, 50]:
@@ -191,7 +237,7 @@ def plot_timeline(openloop, closedloop):
     try:
         cit, cinten = closedloop['intensity']
     except KeyError:
-        pass
+        ax_i.text(0.01, 0.99, "No closed loop intensity data.", transform=ax_i.transAxes, va='top')
     else:
         _, bins, _ = ax_hi.hist(cinten.flatten(), bins, orientation='horizontal', alpha=0.5, normed=True)
         plt.setp(ax_hi.get_yticklabels(), visible=False)
@@ -205,13 +251,14 @@ def plot_timeline(openloop, closedloop):
     ax_hi.tick_params(bottom='off')
     return fig
     
-def plot_psuedophase_view(openloop, closedloop):
-    """docstring for plot_psuedophase_view"""
+@plot("2DView")
+def plot_psuedophase_view(openloop, closedloop, kind='pseudophase'):
+    """Plot 2d views."""
     gs = mgrid.GridSpec(2, 4, width_ratios=[1.0, 1.0, 1.0, 0.05], wspace=0.1)
     fig = plt.figure()
     
-    ost, opp = openloop['pseudophase']
-    cst, cpp = closedloop['pseudophase']
+    ost, opp = openloop[kind]
+    cst, cpp = closedloop[kind]
     # oit, ointen = openloop['intensity']
     # cit, cinten = closedloop['intensity']
     add_figlabel(fig, openloop, closedloop)
@@ -223,7 +270,7 @@ def plot_psuedophase_view(openloop, closedloop):
     for i,t in enumerate(pos):
         ax_op = fig.add_subplot(gs[0, i])
         oim = ax_op.imshow(opp[...,t], norm=pnorm)
-        ax_op.set_title("Phase at t={0:.2f}s".format(ost[t]))
+        ax_op.set_title("{0} at t={1:.2f}s".format(kind, ost[t]))
         ax_cp = fig.add_subplot(gs[1, i])
         cim = ax_cp.imshow(cpp[...,t], norm=pnorm)
         if i == 0:
@@ -233,13 +280,33 @@ def plot_psuedophase_view(openloop, closedloop):
     # fig.colorbar(cim, cax=fig.add_subplot(gs[1, -1]))
     return fig
     
+def previous_noon(now=None):
+    """Compute the previous noon for telemetry folders."""
+    noon = dt.time(12, 0, 0)
+    if now is None:
+        now = dt.datetime.now()
+    if now.hour >= 12:
+        return dt.datetime.combine(now.date(), noon)
+    else:
+        yesterday = (now - dt.timedelta(days=1))
+        return dt.datetime.combine(yesterday.date(), noon)
+    
 def parse_dt(value):
     """Return date"""
+    if isinstance(value, dt.datetime):
+        return previous_noon(value)
     return dt.datetime.strptime(value, "%Y-%m-%d").date()
+    
+def index_label(args):
+    """Make an index label"""
+    if args is None:
+        return "mean"
+    else:
+        return "".join("{:02d}".format(int(a)) for a in args)
     
 @click.command()
 @click.option("--root", default=os.path.sep + pjoin("Volumes","LaCie","Telemetry2","ShaneAO"))
-@click.option("--date", default=dt.date.today(), type=parse_dt, help="Telemetry folder date.")
+@click.option("--date", default=dt.datetime.now(), type=parse_dt, help="Telemetry folder date.")
 @click.argument("ncl", type=int)
 @click.argument("nol", type=int)
 def main(root, date, ncl, nol):
@@ -254,13 +321,8 @@ def main(root, date, ncl, nol):
         tol.generate('pseudophase', generate_pseudophase)
         
         click.echo("Plotting timelines")
-        figure = plot_timeline(tol, tcl)
-        figure.savefig("{0:%Y-%m-%d}-C{1:04d}O{2:04d}-Timeline.png".format(date, ncl, nol))
-        plt.close(figure)
-        
-        figure = plot_psuedophase_view(tol, tcl)
-        figure.savefig("{0:%Y-%m-%d}-C{1:04d}O{2:04d}-Pseudophase.png".format(date, ncl, nol))
-        plt.close(figure)
+        plot_timeline(tol, tcl, date=date)
+        plot_psuedophase_view(tol, tcl, date=date)
         
         click.echo("Generating FModes")
         for t in (tcl, tol):
@@ -276,25 +338,20 @@ def main(root, date, ncl, nol):
         
         click.echo("Plotting PSDs and ETFs")
         
-        for index, label in [(None, 'AVG'), ((10,10), "1010"), ((18,18), "1818")]:
-            figure = plot_psd(tol, tcl, 'pseudophase', index=index)
-            figure.savefig("{0:%Y-%m-%d}-C{1:04d}O{2:04d}-PSD-Pseudophase-{3:s}.png".format(date, ncl, nol, label))
-            plt.close(figure)
-            figure = plot_psd(tol, tcl, 'fmodes', index=index)
-            figure.savefig("{0:%Y-%m-%d}-C{1:04d}O{2:04d}-PSD-FModes-{3:s}.png".format(date, ncl, nol, label))
-            plt.close(figure)
+        for index in [None, (10,10), (18,18)]:
+            plot_psd(tol, tcl, kind='pseudophase', index=index, date=date)
+            plot_psd(tol, tcl, kind='fmodes', index=index, date=date)
             
-            figure = plot_etf(tol, tcl, 'pseudophase', index=index)
-            figure.savefig("{0:%Y-%m-%d}-C{1:04d}O{2:04d}-ETF-Pseudophase-{3:s}.png".format(date, ncl, nol, label))
-            plt.close(figure)
-            
-            figure = plot_etf(tol, tcl, 'fmodes', index=index)
-            figure.savefig("{0:%Y-%m-%d}-C{1:04d}O{2:04d}-ETF-FModes-{3:s}.png".format(date, ncl, nol, label))
-            plt.close(figure)
-            
-        figure = plot_lfp(tol, tcl)
-        figure.savefig("{0:%Y-%m-%d}-C{1:04d}O{2:04d}-LFP-FModes.png".format(date, ncl, nol))
-        plt.close(figure)
+            plot_etf(tol, tcl, kind='pseudophase', index=index, date=date)
+            plot_etf(tol, tcl, kind='fmodes', index=index, date=date)
+        
+        for index in [(18,18), (16,19), (14,18), (13,16), (14,14), (16,13), (18,14), (19,16)]:
+            plot_psd(tol, tcl, kind='fmodes', index=index, date=date)
+            plot_etf(tol, tcl, kind='fmodes', index=index, date=date)
+        
+        plot_lfp(tol, tcl, date=date)
+        
+        plot_lfp(tol, tcl, limit=False, date=date)
 
 def generate_psds(source, rate, length=1024):
     """Generate PSDs"""
@@ -320,7 +377,8 @@ def collapse_psd(psd, kind, index=None):
         psd_selected = psd[index].squeeze()
     return psd_selected
     
-def plot_psd(openloop, closedloop, kind, index=None):
+@plot("PSD")
+def plot_psd(openloop, closedloop, kind='pseudophase', index=None):
     """docstring for plot_psd"""
     fig = plt.figure()
     ax = fig.add_subplot(1,1,1)
@@ -355,7 +413,8 @@ def compute_etf(openloop, closedloop, kind, index):
     etf = cpsd / opsd
     return freq, etf
     
-def plot_etf(openloop, closedloop, kind, index=None):
+@plot("ETF")
+def plot_etf(openloop, closedloop, kind='pseudophase', index=None):
     """Plot the error transfer function."""
     fig = plt.figure()
     ax = fig.add_subplot(1,1,1)
@@ -386,10 +445,9 @@ def plot_etf(openloop, closedloop, kind, index=None):
     ax.legend()
     return fig
     
-def plot_lfp(openloop, closedloop):
+@plot("LFP")
+def plot_lfp(openloop, closedloop, kind='fmodes', index=None, limit=True):
     """Plot low frequency power"""
-    kind = 'fmodes'
-    
     key = '{0}-psd'.format(kind)
     cfreq, cpsd = closedloop[key]
     ofreq, opsd = openloop[key]
@@ -401,10 +459,14 @@ def plot_lfp(openloop, closedloop):
     
     fig = plt.figure()
     ax = fig.add_subplot(1,1,1)
-    lf = np.sort(np.abs(freq))[freq.shape[0] // 10]
-    lfp = etf[...,np.abs(freq) < lf].mean(axis=-1)
+    if limit:
+        lf = np.sort(np.abs(freq))[freq.shape[0] // 30]
+        lfp = etf[...,np.abs(freq) < lf].mean(axis=-1)
+        ax.set_title("Low Frequency Power (Below {1:.2g}) for {0}".format(kind, lf))
+    else:
+        lfp = etf.mean(axis=-1)
+        ax.set_title("Power for {0}".format(kind))
     im = ax.imshow(lfp)
-    ax.set_title("Low Frequency Power for {0}".format(kind))
     fig.colorbar(im)
     return fig
     
