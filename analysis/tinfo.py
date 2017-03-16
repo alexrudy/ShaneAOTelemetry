@@ -1,11 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-#!/usr/bin/env python
-# coding: utf-8
-
 import click
 import os
+import numpy as np
 import h5py
 from glob import iglob as glob
 from os.path import join as pjoin
@@ -34,8 +32,9 @@ def parse_dt(value):
 @click.command()
 @click.option("--root", default=os.path.sep + pjoin("Volumes","LaCie","Telemetry2","ShaneAO"))
 @click.option("--date", default=dt.datetime.now(), type=parse_dt, help="Telemetry folder date.")
+@click.option("-H", "--header", default=None, help="Show header for this dataset.")
 @click.argument("n", type=int)
-def main(root, date, n):
+def main(root, date, header, n):
     """Quick look telemetry tools.
     
     Provide the telemetry numbers to examine for closed loop and open loop.
@@ -47,9 +46,15 @@ def main(root, date, n):
         try:
             click.echo("{0}".format(fn))
             with h5py.File(fn, 'r') as f:
-                g = f['telemetry']['slopes']
-                for key, value in sorted(g.attrs.items()):
-                    click.echo("{0:s} = {1!r}".format(key, value))
+                for key in f['telemetry']:
+                    g = f['telemetry'][key]
+                    shape = "x".join(map(str, g['data'].shape))
+                    nvalid = np.sum(g['mask'])
+                    click.echo("{0:20s} -> ({1}) n={2}".format(key, shape, nvalid))
+                if header:
+                    g = f['telemetry'][header]
+                    for key, value in sorted(g.attrs.items()):
+                        click.echo("{0:s} = {1!r}".format(key, value))
         except (IOError, KeyError) as e:
             click.echo("Problem with {}: {!s}".format(fn, e))
 
