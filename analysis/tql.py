@@ -93,7 +93,10 @@ def read(h5group):
     times = np.linspace(0, n / rate, n)
     mtimes = np.compress(mask, times)
     mdata = np.compress(mask, h5group['data'], axis=axis)
-    return mtimes, np.moveaxis(mdata, axis, -1)
+    mdata = np.moveaxis(mdata, axis, -1)
+    if h5group.name.endswith('tweeter'):
+        mdata = mdata.reshape((32, 32, -1))
+    return mtimes, mdata
 
 def state(h5group):
     return '\n'.join("{}: {}".format(k, v) for k, v in h5group.attrs.items())
@@ -215,7 +218,7 @@ def plot_timeline(openloop, closedloop, kind='pseudophase'):
     plt.setp(ax_hp.get_yticklabels(), visible=False)
 
     # Timelines
-    if ost.ndim == 3:
+    if opp.ndim == 3:
         indexes = ((10,10), (20,10), (10, 20), (20, 20))
     else:
         indexes = [3, 5, 10, 20]
@@ -322,6 +325,8 @@ def main(root, date, ncl, nol):
         
         click.echo("Plotting timelines")
         plot_timeline(tol, tcl, date=date)
+        plot_timeline(tol, tcl, kind='tweeter', date=date)
+        plot_timeline(tol, tcl, kind='woofer', date=date)
         plot_psuedophase_view(tol, tcl, date=date)
         
         click.echo("Generating FModes")
@@ -333,6 +338,7 @@ def main(root, date, ncl, nol):
         click.echo("Generating PSDs")
         for t in (tcl, tol):
             rate = float(t.group['slopes'].attrs.get("WFSCAMRATE", 1.0))
+            t['tweeter-psd'] = generate_psds(t['tweeter'][1], rate, length=1024)
             t['pseudophase-psd'] = generate_psds(t['pseudophase'][1], rate, length=1024)
             t['fmodes-psd'] = generate_psds(t['fmodes'][1], rate, length=1024)
         
@@ -341,9 +347,11 @@ def main(root, date, ncl, nol):
         for index in [None, (10,10), (18,18)]:
             plot_psd(tol, tcl, kind='pseudophase', index=index, date=date)
             plot_psd(tol, tcl, kind='fmodes', index=index, date=date)
+            plot_psd(tol, tcl, kind='tweeter', index=index, date=date)
             
             plot_etf(tol, tcl, kind='pseudophase', index=index, date=date)
             plot_etf(tol, tcl, kind='fmodes', index=index, date=date)
+            plot_etf(tol, tcl, kind='tweeter', index=index, date=date)
         
         for index in [(18,18), (16,19), (14,18), (13,16), (14,14), (16,13), (18,14), (19,16)]:
             plot_psd(tol, tcl, kind='fmodes', index=index, date=date)
@@ -357,7 +365,7 @@ def generate_psds(source, rate, length=1024):
     """Generate PSDs"""
     from controltheory.fourier import frequencies
     from controltheory.periodogram import periodogram
-    psd = periodogram(source, length=length, axis=2, half_overlap=True)
+    psd = periodogram(source, length=length, axis=source.ndim - 1, half_overlap=True)
     freq = frequencies(length, rate)
     return freq, psd
     
