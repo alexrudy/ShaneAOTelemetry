@@ -1,29 +1,56 @@
 from fabric.api import *
 import os.path
+from glob import iglob
+import re
+import h5py
 from os.path import join as pjoin, sep
 import contextlib
 import datetime as dt
-
-BASE = os.path.dirname(__file__)
+from .utils import previous_noon, parse_dt
 
 env.use_ssh_config = True
 
-def previous_noon(now=None):
-    """Compute the previous noon for telemetry folders."""
-    noon = dt.time(12, 0, 0)
-    if now is None:
-        now = dt.datetime.now()
-    if now.hour >= 12:
-        return dt.datetime.combine(now.date(), noon)
-    else:
-        yesterday = (now - dt.timedelta(days=1))
-        return dt.datetime.combine(yesterday.date(), noon)
-    
-def parse_dt(value):
-    """Return date"""
-    if value is None or isinstance(value, dt.datetime):
-        return previous_noon(value)
-    return dt.datetime.strptime(value, "%Y-%m-%d").date()
+__all__ = ['ql', 'pull']
+
+def is_closed_loop(filename):
+    """Determine whether this file is closed loop."""
+    try:
+        with h5py.File(filename, 'r') as f:
+            loop = f['telemetry']['slopes'].attrs.get("LOOPSTATE", "??")
+            return loop in (1, "Closed")
+    except Exception as e:
+        print("Exception {0} for file {1}".format(type(e), filename))
+        return None
+
+@task
+@hosts("<local-only>")
+def ql(date=None):
+    """Quick look telemetry. Assume open loop follows closed loop."""
+    date = parse_dt(date)
+    telroot = sep + pjoin("Volumes","LaCie","Telemetry2","ShaneAO", "{0:%Y-%m-%d}".format(date)) + sep
+    cmdroot = os.path.dirname(os.path.dirname(__file__))
+    outroot = os.path.expanduser("~/Development/ShaneAO/ShWLSimulator")
+
+    cmd = pjoin(cmdroot, 'analysis', 'tql.py')
+    cl, ol = None, None
+    for fn in iglob(pjoin(telroot, 'telemetry_*.hdf5')):
+        m = re.match(r'telemetry_([\d]+)\.hdf5', os.path.basename(fn))
+        if not m:
+            print("Filename {0} seems wrong.".format(fn))
+            continue
+        n = int(m.group(1))
+        closed = is_closed_loop(fn)
+        if closed is None:
+            continue
+        if closed:
+            cl = n
+            ol = None
+        else:
+            ol = n
+        if cl is not None and ol is not None:
+            if not os.path.exists(pjoin(outroot, "{0:%Y-%m-%d}".format(date), "C{0:04d}-O{1:04d}".format(cl, ol))):
+                local("{0} {cl:d} {ol:d}".format(cmd, cl=cl, ol=ol))
+            cl = None
     
 
 @task
