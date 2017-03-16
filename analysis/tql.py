@@ -94,7 +94,7 @@ def read(h5group):
     mtimes = np.compress(mask, times)
     mdata = np.compress(mask, h5group['data'], axis=axis)
     mdata = np.moveaxis(mdata, axis, -1)
-    if h5group.name.endswith('tweeter'):
+    if h5group.name.endswith('tweeter') or h5group.name.endswith("coefficients"):
         mdata = mdata.reshape((32, 32, -1))
     return mtimes, mdata
 
@@ -327,6 +327,11 @@ def main(root, date, ncl, nol):
         plot_timeline(tol, tcl, date=date)
         plot_timeline(tol, tcl, kind='tweeter', date=date)
         plot_timeline(tol, tcl, kind='woofer', date=date)
+        
+        if "coefficients" in tcl.group:
+            plot_timeline(tol, tcl, kind='coefficients', date=date)
+            
+        
         plot_psuedophase_view(tol, tcl, date=date)
         
         click.echo("Generating FModes")
