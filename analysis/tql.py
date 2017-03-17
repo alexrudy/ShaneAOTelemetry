@@ -328,9 +328,12 @@ def main(root, date, ncl, nol):
         plot_timeline(tol, tcl, kind='tweeter', date=date)
         plot_timeline(tol, tcl, kind='woofer', date=date)
         
-        if "coefficients" in tcl.group:
+        if ("coefficients" in tcl.group) and ("coefficients" in tol.group):
             plot_timeline(tol, tcl, kind='coefficients', date=date)
-            
+        
+        if ("icoefficients" in tcl.group) and ("icoefficients" in tol.group):
+            plot_timeline(tol, tcl, kind='icoefficients', date=date)
+        
         
         plot_psuedophase_view(tol, tcl, date=date)
         
@@ -352,11 +355,10 @@ def main(root, date, ncl, nol):
         for index in [None, (10,10), (18,18)]:
             plot_psd(tol, tcl, kind='pseudophase', index=index, date=date)
             plot_psd(tol, tcl, kind='fmodes', index=index, date=date)
-            plot_psd(tol, tcl, kind='tweeter', index=index, date=date)
+            plot_psd(tol, tcl, kind='tweeter', index=index, date=date, show_open=False)
             
             plot_etf(tol, tcl, kind='pseudophase', index=index, date=date)
             plot_etf(tol, tcl, kind='fmodes', index=index, date=date)
-            plot_etf(tol, tcl, kind='tweeter', index=index, date=date)
         
         for index in [(18,18), (16,19), (14,18), (13,16), (14,14), (16,13), (18,14), (19,16)]:
             plot_psd(tol, tcl, kind='fmodes', index=index, date=date)
@@ -391,7 +393,7 @@ def collapse_psd(psd, kind, index=None):
     return psd_selected
     
 @plot("PSD")
-def plot_psd(openloop, closedloop, kind='pseudophase', index=None):
+def plot_psd(openloop, closedloop, kind='pseudophase', index=None, show_open=True):
     """docstring for plot_psd"""
     fig = plt.figure()
     ax = fig.add_subplot(1,1,1)
@@ -405,6 +407,10 @@ def plot_psd(openloop, closedloop, kind='pseudophase', index=None):
     key = '{0}-psd'.format(kind)
     for (freq, psd),label in zip((openloop[key], closedloop[key]),("Open Loop", "Closed Loop")):
         ax.plot(freq, collapse_psd(psd, kind, index), label=label)
+    if not show_open:
+        ax.lines[0].remove()
+    ax.autoscale_view()
+    ax.relim()
     ax.set_yscale('log')
     ax.set_xlim(mpv(freq), np.max(freq))
     ax.set_xscale('log')
