@@ -68,6 +68,9 @@ def main(root, date, closed):
                 rows.append(row)
     t = Table(rows, names=['file'] + ['n'] + [name for _, name, _ in columns])
     t.pprint(max_lines=-1)
+    
+    logfile = pjoin(root, "{date:%Y-%m-%d}", "telemetry.csv").format(date=date)
+    t.write(logfile, format='ascii.ecsv')
 
 if __name__ == '__main__':
     main()
