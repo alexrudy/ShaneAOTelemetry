@@ -12,6 +12,15 @@ env.use_ssh_config = True
 
 __all__ = ['ql', 'pull']
 
+def parse_bool(value):
+    if isinstance(value, (str, bytes)):
+        if value.lower() in ("yes", "y", "true", "t"):
+            return True
+        elif value.lower() in ("no", "n", "false", "f"):
+            return False
+        raise ValueError("Bool: {0!r}".format(value))
+    return bool(value)
+
 def is_closed_loop(filename):
     """Determine whether this file is closed loop."""
     try:
@@ -23,10 +32,11 @@ def is_closed_loop(filename):
         return None
 
 @task
-@hosts("<local-only>")
-def ql(date=None):
+@hosts("localhost")
+def ql(date=None, force=False):
     """Quick look telemetry. Assume open loop follows closed loop."""
     date = parse_dt(date)
+    force = parse_bool(force)
     telroot = sep + pjoin("Volumes","LaCie","Telemetry2","ShaneAO", "{0:%Y-%m-%d}".format(date)) + sep
     cmdroot = os.path.dirname(os.path.dirname(__file__))
     outroot = os.path.expanduser("~/Development/ShaneAO/ShWLSimulator")
@@ -48,7 +58,8 @@ def ql(date=None):
         else:
             ol = n
         if cl is not None and ol is not None:
-            if not os.path.exists(pjoin(outroot, "{0:%Y-%m-%d}".format(date), "C{0:04d}-O{1:04d}".format(cl, ol))):
+            directory = os.path.exists(pjoin(outroot, "{0:%Y-%m-%d}".format(date), "C{0:04d}-O{1:04d}".format(cl, ol)))
+            if (not directory) or force:
                 local("{0} {cl:d} {ol:d}".format(cmd, cl=cl, ol=ol))
             cl = None
     
