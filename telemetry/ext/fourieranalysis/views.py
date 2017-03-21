@@ -47,8 +47,8 @@ def periodogram_plot(ax, periodogram, **kwargs):
     data = data.reshape((-1, length))
     show_periodogram(ax, data.T, rate=periodogram.dataset.rate, color='k')
     ax.set_title('{0:s} Periodogram for {1:s}'.format(periodogram.kind.kind.capitalize(), periodogram.dataset.title()))
-    if np.min(data) < 1e-10:
-        ax.set_ylim(np.min(data[data > 1e-10]), np.max(data))
+    # if np.min(data) < 1e-10:
+        # ax.set_ylim(np.min(data[data > 1e-10]), np.max(data))
     
 @telemetry_plotting_task(category='powerspectrum')
 def powerspectrum_plot(ax, periodogram, **kwargs):
@@ -71,14 +71,14 @@ def powerspectrum_plot(ax, periodogram, **kwargs):
     peg_freq = freq[peg_idx]
     peg_amp = datam[peg_idx]
     p_denom = 5.0
-    ax.plot(freq, peg_amp * (freq.value / peg_freq.value) ** (-p_denom/3.0), label=r"$\propto f^{{-{:.0f}/3}}$".format(p_denom))
+    ax.plot(freq, peg_amp * (freq.value / peg_freq.value) ** (-p_denom/3.0), label=r"$\propto f^{{-{:.0f}/3}}$".format(p_denom), scalex=False, scaley=False)
     
     ax.legend(loc='best')
     ax.set_title('{0:s} Power Spectrum for {1:s}'.format(periodogram.kind.kind.capitalize(), periodogram.dataset.title()))
     ax.set_xscale('log')
     ax.set_xlim(rate.value / (2.0 * length), rate.value / 2.0)
-    if np.min(data) < 1e-10:
-        ax.set_ylim(np.min(data[data > 1e-10]), np.max(data))
+    # if np.min(data) < 1e-10:
+        # ax.set_ylim(np.min(data[data > 1e-10]), np.max(data))
     
 def plot_mean_transfer_model(transfer_model, ax, length):
     """Plot the fit of a transfer function."""
