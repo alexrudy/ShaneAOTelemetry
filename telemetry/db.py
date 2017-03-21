@@ -47,7 +47,7 @@ class DatasetQuery(ClickGroup):
         return q
         
     @staticmethod
-    def validate_date(value):
+    def date(value):
         """Validate a date."""
         if value == "today":
             return datetime.datetime.now().date()
@@ -56,7 +56,7 @@ class DatasetQuery(ClickGroup):
     @classmethod
     def decorate(cls, func):
         """docstring for decorate"""
-        func = cls.option("--date", default=None, type=cls.validate_date,
+        func = cls.option("--date", default=None, type=cls.date,
             name="date", help="Limit the query to a specific date.", envvar='TELEM_DATE')(func)
         func = cls.option("--instrument", default=None, type=str, help="Instrument Name", name='instrument')(func)
         func = cls.option("--id", default=None, type=int, help="Dataset ID", name='dataset_id')(func)
