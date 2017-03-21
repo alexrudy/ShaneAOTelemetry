@@ -83,12 +83,15 @@ class ShadyAOInfo(DatasetInfoBase):
     @classmethod
     def _from_mapping(cls, dataset, mapping):
         """Set the dataset attributes appropriately."""
-        obj = super(ShadyAOInfo, cls)._from_mapping(dataset, mapping)
+        parsed_mapping = parse_values_from_header(mapping)
+        print(dict(mapping))
+        print(parsed_mapping)
+        obj = super(ShadyAOInfo, cls)._from_mapping(dataset, parsed_mapping)
         dataset.rate = obj.wfs_rate
         dataset.gain = obj.tweeter_gain
         dataset.bleed = obj.tweeter_bleed
         if obj.loop is not None:
-            dataset.closed = obj.loop.lower() == "closing"
+            dataset.closed = obj.loop.lower() == "closed"
         return obj
     
     @hybrid_property
