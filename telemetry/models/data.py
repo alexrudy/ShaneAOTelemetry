@@ -239,7 +239,12 @@ class Dataset(Base):
                 if (kind.h5path in g) and (kind.h5path not in self.telemetry):
                     self.telemetry[kind.h5path] = Telemetry(kind=kind, dataset=self)
             elif isinstance(g.get(key, None), h5py.Group):
-                keys.extend("/".join([key, subkey]) for subkey in g[key].keys())
+                sg = g[key]
+                if sg.keys() == ["data", "mask"]:
+                    kind = TelemetryKind.require(session, key, key)
+                    self.telemetry[kind.h5path] = Telemetry(kind=kind, dataset=self)
+                else:
+                    keys.extend("/".join([key, subkey]) for subkey in g[key].keys())
             else:
                 kind = TelemetryKind.require(session, key, key)
                 self.telemetry[kind.h5path] = Telemetry(kind=kind, dataset=self)

@@ -86,7 +86,8 @@ class SlopeVector(TelemetryGenerator):
         ns = self._NSLOPES[n_across]
         idx = {'sx':0,'sy':1}[self.name]
         with dataset.open() as g:
-            g.create_dataset(self.h5path, data=s[idx*ns:(idx+1)*ns,:])
+            d = g.create_dataset(self.h5path, data=s[idx*ns:(idx+1)*ns,:])
+            d.attrs['TAXIS'] = s.ndim - 1
         return super(SlopeVector, self).generate(dataset)
     
 class SlopeVectorX(SlopeVector):
@@ -142,7 +143,8 @@ class MatrixTransform(TelemetryGenerator):
         with dataset.open() as g:
             if self.h5path in g:
                 del g[self.h5path]
-            g.create_dataset(self.h5path, data=coeffs)
+            d = g.create_dataset(self.h5path, data=coeffs)
+            d.attrs['TAXIS'] = coeffs.ndim - 1
         del coeffs
         return super(MatrixTransform, self).generate(dataset)
 
@@ -178,9 +180,6 @@ class PseudoPhase(MatrixTransform):
     def _get_source(self, dataset):
         """Get the source from a dataset."""
         source = dataset.telemetry[self.SOURCE].read()
-        if dataset.instrument.name == 'shadyao':
-            if source.shape[-1] > 288:
-                source = source[:,:288].T
         log.info("Making a pseudophase out of ({0})".format("x".join(map(str, source.shape))))        
         return source
 

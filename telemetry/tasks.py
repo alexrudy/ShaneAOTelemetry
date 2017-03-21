@@ -61,7 +61,13 @@ def read(self, filename, instrument_name=None, force=False):
                     log.error("Expected to find a '/telemetry' group. Found [{0}]".format(",".join(f.keys())))
                     raise KeyError('telemetry')
                 dataset = Dataset.from_h5py_group(self.session, f['telemetry'])
-                metadata = DatasetInfoBase.from_mapping(dataset, f['telemetry'].attrs, instrument=instrument.metadata_type)
+                if len(f['telemetry'].attrs):
+                    mapping = f['telemetry'].attrs
+                else:
+                    g = f['telemetry']
+                    k = next(iter(g.keys()))
+                    mapping = g[k].attrs
+                metadata = DatasetInfoBase.from_mapping(dataset, mapping, instrument=instrument.metadata_type)
                 dataset.instrument = instrument
                 dataset.update_h5py_group(self.session, f['telemetry'])
                 self.session.add(metadata)

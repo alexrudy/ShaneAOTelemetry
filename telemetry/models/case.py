@@ -2,6 +2,7 @@
 
 import os
 import h5py
+import numpy as np
 import contextlib
 import collections
 
@@ -97,7 +98,12 @@ class TelemetryKind(Base):
     def read(self, dataset):
         """Read from the HDF5 file."""
         if isinstance(dataset, h5py.Group):
-            return dataset['data'][...]
+            mask = dataset['mask'][...] == 1
+            assert mask.any(), "Some elements must be valid."
+            axis = int(dataset['data'].attrs.get("TAXIS", 0))
+            n = dataset['data'].shape[axis]
+            mdata = np.compress(mask, dataset['data'], axis=axis)
+            return np.moveaxis(mdata, axis, -1)
         return dataset[...]
     
     @property
