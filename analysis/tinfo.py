@@ -23,7 +23,7 @@ def previous_noon(now=None):
         yesterday = (now - dt.timedelta(days=1))
         return dt.datetime.combine(yesterday.date(), noon)
     
-def parse_dt(value):
+def date(value):
     """Return date"""
     if isinstance(value, dt.datetime):
         return previous_noon(value)
@@ -31,7 +31,7 @@ def parse_dt(value):
     
 @click.command()
 @click.option("--root", default=os.path.sep + pjoin("Volumes","LaCie","Telemetry2","ShaneAO"))
-@click.option("--date", default=dt.datetime.now(), type=parse_dt, help="Telemetry folder date.")
+@click.option("--date", default=dt.datetime.now(), type=date, help="Telemetry folder date.")
 @click.option("-H", "--header", default=None, help="Show header for this dataset.")
 @click.argument("n", type=int)
 def main(root, date, header, n):
@@ -48,9 +48,16 @@ def main(root, date, header, n):
             with h5py.File(fn, 'r') as f:
                 for key in f['telemetry']:
                     g = f['telemetry'][key]
-                    shape = "x".join(map(str, g['data'].shape))
-                    nvalid = np.sum(g['mask'])
-                    click.echo("{0:20s} -> ({1}) n={2}".format(key, shape, nvalid))
+                    try:
+                        if isinstance(g, h5py.Group):
+                            shape = "x".join(map(str, g['data'].shape))
+                            nvalid = np.sum(g['mask'])
+                        else:
+                            shape = "x".join(map(str, g.shape))
+                            nvalid = np.sum(g.shape)
+                        click.echo("{0:20s} -> ({1}) n={2}".format(key, shape, nvalid))
+                    except Exception:
+                        click.echo("Error handling group {0}".format(key))
                 if header:
                     g = f['telemetry'][header]
                     for key, value in sorted(g.attrs.items()):

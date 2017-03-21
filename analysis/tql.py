@@ -36,7 +36,7 @@ def configure():
     """Generate a configuration"""
     global cfg, ap, library
     cfg = ShadyConfigParser("ShadyAO.cfg")
-    cfg.load_mode('16xsim')
+    cfg.load_mode('16x')
     click.echo("Configuring ShadyAO in mode {0} from ShadyAO.cfg".format(cfg.get("reconstructor","mode")))
     ap = tweeter_aperture(cfg)
     
@@ -83,14 +83,29 @@ class TelemetryContainer(collections.MutableMapping):
         """Generate a telemetry form."""
         self._cache[key] = func(self.group)
 
+rate_enumeration = {
+    1: 50.0 * u.Hz,
+    2: 100.0 * u.Hz,
+    3: 250.0 * u.Hz,
+    4: 500.0 * u.Hz,
+    5: 700.0 * u.Hz,
+    6: 1000.0 * u.Hz,
+    7: 1300.0 * u.Hz,
+    8: 1500.0 * u.Hz,
+}
 def read(h5group):
     """Read a masked group"""
     mask = h5group['mask'][...] == 1
     assert mask.any(), "Some elements must be valid."
     axis = int(h5group['data'].attrs.get("TAXIS", 0))
-    rate = float(h5group.attrs.get("WFSCAMRATE", 1.0))
+    rate = h5group.attrs.get("WFSCAMRATE", 1.0)
+    if isinstance(rate, int) and (0 <= rate <= 7): 
+        # Rate was set as an enumeration?
+        rate = rate_enumeration.get(rate, rate * u.Hz)
+    else:
+        rate = u.Quantity(float(rate), u.Hz)
     n = h5group['data'].shape[axis]
-    times = np.linspace(0, n / rate, n)
+    times = np.linspace(0, n / rate.value, n) * rate.unit
     mtimes = np.compress(mask, times)
     mdata = np.compress(mask, h5group['data'], axis=axis)
     mdata = np.moveaxis(mdata, axis, -1)
@@ -143,7 +158,7 @@ def plot(key, extension="png"):
             
             parts = ["{date:%Y-%m-%d}","C{closedloop.n:04d}","O{openloop.n:04d}","{kind:s}", "{key:s}", "{index:s}"]
             basename = "{0}.{{ext:s}}".format("-".join(parts))
-            path = pjoin("{date:%Y-%m-%d}", "C{closedloop.n:04d}-O{openloop.n:04d}")
+            path = pjoin("{date:%Y-%m-%d}", "C{closedloop.n:04d}-O{openloop.n:04d}", "{kind:s}")
             if subdir:
                 path = pjoin(path, subdir)
             path = pjoin(path, basename)
@@ -164,6 +179,20 @@ def generate_pseudophase(group):
     times, slopes = read(group['slopes'])
     phase = np.dot(library['L'], slopes[:ns]).A.reshape((32,32,-1))
     return times, phase
+
+def generate_tweeter_modes(group):
+    """docstring for generate_tweeter_modes"""
+    ns = int(group['slopes'].attrs.get('WFSNS', 144)) * 2
+    times, slopes = read(group['slopes'])
+    modes = np.dot(library['H_d'], slopes[:ns]).A
+    return times, modes
+
+def generate_woofer_modes(group):
+    """docstring for generate_tweeter_modes"""
+    ns = int(group['slopes'].attrs.get('WFSNS', 144)) * 2
+    times, slopes = read(group['slopes'])
+    modes = np.dot(library['Hw_d'], slopes[:ns]).A
+    return times, modes
 
 attributes_to_label = [
     ('g_t',"TWEETERGAIN"),
@@ -224,8 +253,12 @@ def plot_timeline(openloop, closedloop, kind='pseudophase'):
         indexes = [3, 5, 10, 20]
     
     for index in indexes:
-        ax_p.plot(ost, opp[index], color=ol_color, alpha=0.5)
-        ax_p.plot(cst, cpp[index], color=cl_color, alpha=0.5)
+        try:
+            ax_p.plot(ost, opp[index], color=ol_color, alpha=0.5)
+            ax_p.plot(cst, cpp[index], color=cl_color, alpha=0.5)
+        except IndexError as e:
+            pass
+        
     ax_p.set_ylabel("{0}".format(kind.capitalize()))
     
     try:
@@ -320,13 +353,18 @@ def main(root, date, ncl, nol):
     """
     configure()
     with tboth(root, date, ncl, nol) as (tcl, tol):
-        tcl.generate('pseudophase', generate_pseudophase)
-        tol.generate('pseudophase', generate_pseudophase)
+        
+        for t in (tcl, tol):
+            t.generate('pseudophase', generate_pseudophase)
+            t.generate('tweeter-modes', generate_tweeter_modes)
+            t.generate('woofer-modes', generate_woofer_modes)
         
         click.echo("Plotting timelines")
         plot_timeline(tol, tcl, date=date)
         plot_timeline(tol, tcl, kind='tweeter', date=date)
         plot_timeline(tol, tcl, kind='woofer', date=date)
+        plot_timeline(tol, tcl, kind='tweeter-modes', date=date)
+        plot_timeline(tol, tcl, kind='woofer-modes', date=date)
         
         if ("coefficients" in tcl.group) and ("coefficients" in tol.group):
             plot_timeline(tol, tcl, kind='coefficients', date=date)
@@ -346,11 +384,29 @@ def main(root, date, ncl, nol):
         click.echo("Generating PSDs")
         for t in (tcl, tol):
             rate = float(t.group['slopes'].attrs.get("WFSCAMRATE", 1.0))
+            t['tweeter-modes-psd'] = generate_psds(t['tweeter-modes'][1], rate, length=1024)
+            t['woofer-modes-psd'] = generate_psds(t['woofer-modes'][1], rate, length=1024)
             t['tweeter-psd'] = generate_psds(t['tweeter'][1], rate, length=1024)
             t['pseudophase-psd'] = generate_psds(t['pseudophase'][1], rate, length=1024)
             t['fmodes-psd'] = generate_psds(t['fmodes'][1], rate, length=1024)
         
         click.echo("Plotting PSDs and ETFs")
+        
+        plot_psd(tol, tcl, kind='tweeter-modes', index=None, date=date)
+        plot_etf(tol, tcl, kind='tweeter-modes', index=None, date=date)
+        plot_lfp(tol, tcl, kind='tweeter-modes', date=date)
+        
+        for i in range(20):
+            plot_psd(tol, tcl, kind='tweeter-modes', index=(i,), date=date)
+            plot_etf(tol, tcl, kind='tweeter-modes', index=(i,), date=date)
+        
+        plot_psd(tol, tcl, kind='woofer-modes', index=None, date=date)
+        plot_etf(tol, tcl, kind='woofer-modes', index=None, date=date)
+        plot_lfp(tol, tcl, kind='woofer-modes', date=date)
+        for i in range(14):
+            plot_psd(tol, tcl, kind='woofer-modes', index=(i,), date=date)
+            plot_etf(tol, tcl, kind='woofer-modes', index=(i,), date=date)
+        
         
         for index in [None, (10,10), (18,18)]:
             plot_psd(tol, tcl, kind='pseudophase', index=index, date=date)
@@ -485,8 +541,13 @@ def plot_lfp(openloop, closedloop, kind='fmodes', index=None, limit=True):
     else:
         lfp = etf.mean(axis=-1)
         ax.set_title("Power for {0}".format(kind))
-    im = ax.imshow(lfp)
-    fig.colorbar(im)
+    
+    if lfp.ndim == 2:
+        im = ax.imshow(lfp)
+        fig.colorbar(im)
+    else:
+        ax.plot(lfp)
+        ax.set_xlabel("Mode Number")
     return fig
     
 def dead_code():

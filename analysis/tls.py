@@ -9,23 +9,42 @@ from os.path import join as pjoin
 import datetime as dt
 from astropy.table import Table
 from telemetry.utils import parse_dt
+import astropy.units as u
 
 def state(h5group):
     return '\n'.join("{}: {}".format(k, v) for k, v in h5group.attrs.items())
 
-cam_enumeration = {0:0,1:50,2:100,3:250,4:500,5:700,6:1000,7:1300,8:1500}
+
+rate_enumeration = {
+    1: 50.0 * u.Hz,
+    2: 100.0 * u.Hz,
+    3: 250.0 * u.Hz,
+    4: 500.0 * u.Hz,
+    5: 700.0 * u.Hz,
+    6: 1000.0 * u.Hz,
+    7: 1300.0 * u.Hz,
+    8: 1500.0 * u.Hz,
+}
 def camera_rate_enumerator(enum):
     """Translate the camera rate enumerator"""
     if isinstance(enum, int):
-        return float(cam_enumeration[enum])
+        return rate_enumeration[enum].value
     else:
-        return float(enum)
+        return u.Quantity(enum, u.Hz).value
     
 loop_enumeration = {0:"Open",1:"Closed"}
 def loop_enumerator(enum):
     """Translate the camera rate enumerator"""
     if isinstance(enum, int):
         return loop_enumeration[enum]
+    else:
+        return str(enum)
+
+offload_enumerator = {0:"Unknown",1:"Off",2:"On"}
+def offload_enumeration(enum):
+    """Translate the camera rate enumerator"""
+    if isinstance(enum, int):
+        return offload_enumerator[enum]
     else:
         return str(enum)
 
@@ -38,6 +57,7 @@ columns = [
     ("WOOFERBLEED", "c_w", float),
     ("ALPHA", "alpha", float),
     ("RECONSTRUCTOR", "recon", str),
+    ("OFFLOAD", "offload", offload_enumeration),
 ]
 
 @click.command()
@@ -70,7 +90,7 @@ def main(root, date, closed):
     t.pprint(max_lines=-1)
     
     logfile = pjoin(root, "{date:%Y-%m-%d}", "telemetry.csv").format(date=date)
-    t.write(logfile, format='ascii.ecsv')
+    t.write(logfile, format='ascii.ecsv', overwrite=True)
 
 if __name__ == '__main__':
     main()
