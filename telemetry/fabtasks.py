@@ -60,7 +60,7 @@ def ql(date=None, force=False):
         if cl is not None and ol is not None:
             directory = os.path.exists(pjoin(outroot, "{0:%Y-%m-%d}".format(date), "C{0:04d}-O{1:04d}".format(cl, ol)))
             if (not directory) or force:
-                local("{0} {cl:d} {ol:d}".format(cmd, cl=cl, ol=ol))
+                local("{0} --date {1:%Y-%m-%d} {cl:d} {ol:d}".format(cmd, date, cl=cl, ol=ol))
             cl = None
     
 
