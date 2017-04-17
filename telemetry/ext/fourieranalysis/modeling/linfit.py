@@ -37,6 +37,7 @@ def frequency_weigts_suppress_static(freq):
     g = np.exp(-0.5 * (x**2.0) / (0.1))
     g /= g.max()
     g[g==1.0] = 1.0 - 1e-5
+    g[x==0.0] = 1.0 - 1e-5
     return (1.0 - g)
 
 def expected_model(tf):
