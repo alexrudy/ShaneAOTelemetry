@@ -12,6 +12,7 @@ import time
 import itertools
 import lumberjack
 import logging
+import collections
 from celery import group
 from telemetry.models import Dataset, TelemetryKind
 from sqlalchemy.sql import between
