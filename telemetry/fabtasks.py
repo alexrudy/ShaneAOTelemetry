@@ -61,6 +61,8 @@ def ql(date=None, force=False):
             directory = os.path.exists(pjoin(outroot, "{0:%Y-%m-%d}".format(date), "C{0:04d}-O{1:04d}".format(cl, ol)))
             if (not directory) or force:
                 local("{0} --date {1:%Y-%m-%d} {cl:d} {ol:d}".format(cmd, date, cl=cl, ol=ol))
+            else:
+                print("Directory {0} already exists".format(directory))
             cl = None
     
 
