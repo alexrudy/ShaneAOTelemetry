@@ -28,17 +28,16 @@ class LogLevMarLSQFitter(fitting.LevMarLSQFitter):
         if weights is None:
             return np.ravel(np.log(model(*args[2 : -1])) - np.log(meas))
         else:
-            return np.ravel(np.log(weights * model(*args[2 : -1])) - np.log(meas))
+            return np.ravel(np.log(weights * model(*args[2 : -1])) - np.log(weights * meas))
     
 
-def frequency_weigts_suppress_static(freq):
+def frequency_weigts_suppress_static(freq, width=np.power(10.0, -2)):
     """Suppress static values in frequency weights."""
     x = np.asarray(freq)
-    g = np.exp(-0.5 * (x**2.0) / (0.1))
+    g = np.exp(-0.5 * (np.abs(x)**2.0) / (width * np.ptp(x) ** 2.0))
     g /= g.max()
-    g[g==1.0] = 1.0 - 1e-5
-    g[x==0.0] = 1.0 - 1e-5
-    return (1.0 - g)
+    g[x==0.0] = 1e-5
+    return g
 
 def expected_model(tf):
     """Generate the expected model."""

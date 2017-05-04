@@ -28,7 +28,7 @@ import collections
 from ShadyAO.config import ShadyConfigParser
 from ShadyAO.tweeter import tweeter_aperture
 
-from telemetry.ext.fourieranalysis.modeling.model import TransferFunction
+from telemetry.ext.fourieranalysis.modeling.model import TransferFunction, JointTransferFunction
 from telemetry.ext.fourieranalysis.modeling.linfit import apply_LevMarLSQFitter
 
 def configure():
@@ -496,7 +496,7 @@ def compute_etf(openloop, closedloop, kind, index, **kwargs):
     return freq, etf
     
 @plot("ETF")
-def plot_etf(openloop, closedloop, kind='pseudophase', index=None, show_nominal=True, show_fit=True, show_pegged_fit=True, label=None, figure=None, average=True):
+def plot_etf(openloop, closedloop, kind='pseudophase', index=None, show_nominal=True, show_fit=True, show_pegged_fit=True, show_joint_fit=True, label=None, figure=None, average=True):
     """Plot the error transfer function."""
     fig = figure or plt.figure()
     ax = fig.add_subplot(1,1,1)
@@ -510,13 +510,17 @@ def plot_etf(openloop, closedloop, kind='pseudophase', index=None, show_nominal=
     freq, etf = compute_etf(openloop, closedloop, kind, index, average=True)
     ax.plot(freq, etf, label=(label or "Transfer Function"))
     
-    rate = parse_rate(closedloop.group['slopes'].attrs.get("WFSCAMRATE", 1.0))
+    rate = parse_rate(closedloop.group['slopes'].attrs.get("WFSCAMRATE", 1.0)).to(u.Hz).value
     gain = float(closedloop.group['slopes'].attrs.get("TWEETERGAIN", 0.0))
+    w_gain = float(closedloop.group['slopes'].attrs.get("WOOFERGAIN", 0.0))
     bleed = float(closedloop.group['slopes'].attrs.get("TWEETERBLEED", 0.99))
-    model = TransferFunction(tau=1.1/rate, gain=gain, rate=rate, ln_c=1, integrator=bleed)
+    w_bleed = float(closedloop.group['slopes'].attrs.get("WOOFERGAIN", 0.99))
+    alpha = float(closedloop.group['slopes'].attrs.get("ALPHA", 0.8))
+    
+    model = TransferFunction(tau=1.0 + 900e-6 * rate, gain=gain, rate=rate, integrator=bleed)
     
     if show_nominal:
-        ax.plot(freq, model(freq.to("Hz").value), label=r'Model ($g={0.gain.value:.2f}$, $c={0.integrator:.2f}$, $\tau={0.tau.value:.2g}$s)'.format(model), color='r')
+        ax.plot(freq, model(freq.to("Hz").value), label=r'Model ($g={0.gain.value:.2f}$, $c={0.integrator:.2f}$, $\tau={0.tau.value:.2g}$)'.format(model), color='r')
     
     if show_fit:
         if etf.ndim > 1:
@@ -525,19 +529,30 @@ def plot_etf(openloop, closedloop, kind='pseudophase', index=None, show_nominal=
             etf_to_fit = etf
         
         fit_model = apply_LevMarLSQFitter(model, freq, etf_to_fit)
-        ax.plot(freq, fit_model(freq.to("Hz").value), label=r'Fit ($g={0.gain.value:.2f}$, $c={0.integrator:.2f}$, $\tau={0.tau.value:.2g}$s)'.format(fit_model), color='g')
+        ax.plot(freq, fit_model(freq.to("Hz").value), label=r'Fit ($g={0.gain.value:.2f}$, $c={0.integrator:.2f}$, $\tau={0.tau.value:.2g}$)'.format(fit_model), color='g')
         if show_pegged_fit:
             model.ln_c.fixed = True
             fit_pegged = apply_LevMarLSQFitter(model, freq, etf_to_fit)
-            ax.plot(freq, fit_pegged(freq.to("Hz").value), label=r'Fit ($g={0.gain.value:.2f}$, $c={0.integrator:.2f}$, $\tau={0.tau.value:.2g}$s)'.format(fit_pegged), color='m')
-            
-        
+            ax.plot(freq, fit_pegged(freq.to("Hz").value), label=r'Fit ($g={0.gain.value:.2f}$, $c={0.integrator:.2f}$, $\tau={0.tau.value:.2g}$) fixed $c$.'.format(fit_pegged), color='m')
+        if show_joint_fit:
+            model = JointTransferFunction(tau=1.0 + 900e-6 * rate, rate=rate,
+                                          tweeter_gain=gain, tweeter_integrator=bleed,
+                                          woofer_gain=w_gain, woofer_integrator=w_bleed,
+                                          woofer_tau=6.4e-3 * rate, woofer_alpha=alpha,
+                                          woofer_overlap=1.0, woofer_rate=200)
+            model.woofer_alpha.fixed = True
+            joint_fit = apply_LevMarLSQFitter(model.copy(), freq, etf_to_fit)
+            ax.plot(freq, joint_fit(freq.to("Hz").value), label=r'Joint Fit ($g_t={0.tweeter_gain.value:.2f}$, $c_t={0.tweeter_integrator:.2f}$, $g_w={0.woofer_gain.value:.2f}$, $c_w={0.woofer_integrator:.2f}$, $\tau={0.tau.value:.2g}$, $\tau_w={0.woofer_tau.value:.2g}$, $\alpha={0.woofer_alpha.value:.2g}$)'.format(joint_fit), color='orange')
+            model.woofer_ln_c.fixed = True
+            model.tweeter_ln_c.fixed = True
+            joint_pegged_fit = apply_LevMarLSQFitter(model.copy(), freq, etf_to_fit)
+            ax.plot(freq, joint_pegged_fit(freq.to("Hz").value), label=r'Joint Fit ($g_t={0.tweeter_gain.value:.2f}$, $c_t={0.tweeter_integrator:.2f}$, $g_w={0.woofer_gain.value:.2f}$, $c_w={0.woofer_integrator:.2f}$, $\tau={0.tau.value:.2g}$, $\tau_w={0.woofer_tau.value:.2g}$, $\alpha={0.woofer_alpha.value:.2g}$) fixed $c$s'.format(joint_pegged_fit), color='m')
         
         
     ax.set_yscale('log')
     ax.set_xlim(mpv(freq), np.max(freq))
     ax.set_xscale('log')
-    ax.legend()
+    ax.legend(fontsize='x-small')
     return fig
     
 @plot("LFP")

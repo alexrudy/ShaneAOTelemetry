@@ -72,12 +72,12 @@ def main(root, date):
             
             click.echo("Plotting PSDs and ETFs")
             alpha = float(tcl.group['slopes'].attrs['ALPHA'])
-            label = r"$\alpha={0:.1f}$".format(alpha)
+            label = r"Data $\alpha={0:.1f}$".format(alpha)
             name = figure_name(tol, tcl, "joint", ext="png", path=directory, key="ETF")
             
             f_to_save, etf_to_save = compute_etf(tol, tcl, 'woofer-modes', None, average=True)
             name_no_ext, ext = os.path.splitext(name)
-            with h5py.File(name_no_ext + ".hdf5", mode='r+') as hfile:
+            with h5py.File(name_no_ext + ".hdf5", mode='a') as hfile:
                 freq = hfile.require_dataset("frequency", shape=f_to_save.shape, dtype=f_to_save.dtype)
                 freq[...] = f_to_save
                 etf = hfile.require_dataset("etf", shape=etf_to_save.shape, dtype=etf_to_save.dtype)
@@ -85,7 +85,7 @@ def main(root, date):
             
             
             with quantity_support():
-                plot_etf(tol, tcl, kind='tweeter-modes', index=slice(0, 10), label=label, show_fit=True, show_nominal=True, path=directory)
+                plot_etf(tol, tcl, kind='tweeter-modes', index=slice(0, 10), label=label, show_fit=True, show_nominal=True, show_joint_fit=True, path=directory)
                 joint_etf = plt.figure()
                 plot_etf.__wrapped__(tol, tcl, kind='tweeter-modes', index=slice(0, 10), label="tweeter", show_fit=False, show_nominal=False, figure=joint_etf)
                 plot_etf.__wrapped__(tol, tcl, kind='woofer-modes', index=None, label="woofer", show_fit=False, show_nominal=False, figure=joint_etf)
