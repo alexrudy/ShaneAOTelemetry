@@ -39,7 +39,7 @@ def ql(date=None, force=False):
     force = parse_bool(force)
     telroot = sep + pjoin("Volumes","LaCie","Telemetry2","ShaneAO", "{0:%Y-%m-%d}".format(date)) + sep
     cmdroot = os.path.dirname(os.path.dirname(__file__))
-    outroot = os.path.expanduser("~/Development/ShaneAO/ShWLSimulator")
+    outroot = os.getcwd()
 
     cmd = pjoin(cmdroot, 'analysis', 'tql.py')
     cl, ol = None, None
@@ -58,8 +58,8 @@ def ql(date=None, force=False):
         else:
             ol = n
         if cl is not None and ol is not None:
-            directory = os.path.exists(pjoin(outroot, "{0:%Y-%m-%d}".format(date), "C{0:04d}-O{1:04d}".format(cl, ol)))
-            if (not directory) or force:
+            directory = pjoin(outroot, "{0:%Y-%m-%d}".format(date), "C{0:04d}-O{1:04d}".format(cl, ol))
+            if (not os.path.exists(directory)) or force:
                 local("{0} --date {1:%Y-%m-%d} {cl:d} {ol:d}".format(cmd, date, cl=cl, ol=ol))
             else:
                 print("Directory {0} already exists".format(directory))
