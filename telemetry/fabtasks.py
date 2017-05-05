@@ -39,9 +39,9 @@ def ql(date=None, force=False):
     force = parse_bool(force)
     telroot = sep + pjoin("Volumes","LaCie","Telemetry2","ShaneAO", "{0:%Y-%m-%d}".format(date)) + sep
     cmdroot = os.path.dirname(os.path.dirname(__file__))
-    outroot = os.getcwd()
+    outroot = os.path.expanduser(pjoin("~", "Dropbox", "Astronomy", "LabFees", "TQL"))
 
-    cmd = pjoin(cmdroot, 'analysis', 'tql.py')
+    cmd = os.path.abspath(pjoin(cmdroot, 'analysis', 'tql.py'))
     cl, ol = None, None
     for fn in iglob(pjoin(telroot, 'telemetry_*.hdf5')):
         m = re.match(r'telemetry_([\d]+)\.hdf5', os.path.basename(fn))
@@ -60,7 +60,7 @@ def ql(date=None, force=False):
         if cl is not None and ol is not None:
             directory = pjoin(outroot, "{0:%Y-%m-%d}".format(date), "C{0:04d}-O{1:04d}".format(cl, ol))
             if (not os.path.exists(directory)) or force:
-                local("{0} --date {1:%Y-%m-%d} {cl:d} {ol:d}".format(cmd, date, cl=cl, ol=ol))
+                local("{0} --date {1:%Y-%m-%d} --outdir {2:s} {cl:d} {ol:d}".format(cmd, date, outroot, cl=cl, ol=ol))
             else:
                 print("Directory {0} already exists".format(directory))
             cl = None

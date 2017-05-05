@@ -19,14 +19,16 @@ from ql import plot_timeline, plot_psuedophase_view, plot_psd, plot_etf, plot_lf
 @click.command()
 @click.option("--root", default=os.path.sep + pjoin("Volumes","LaCie","Telemetry2","ShaneAO"))
 @click.option("--date", default=dt.datetime.now(), type=parse_dt, help="Telemetry folder date.")
+@click.option("--outdir", default=os.getcwd(), type=click.Path(exists=True))
 @click.argument("ncl", type=int)
 @click.argument("nol", type=int)
-def main(root, date, ncl, nol):
+def main(root, date, ncl, nol, outdir):
     """Quick look telemetry tools.
     
     Provide the telemetry numbers to examine for closed loop and open loop.
     
     """
+    os.chdir(outdir)
     configure()
     with tboth(root, date, ncl, nol) as (tcl, tol):
         
