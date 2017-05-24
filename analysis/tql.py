@@ -12,7 +12,7 @@ import numpy as np
 import astropy.units as u
 import datetime as dt
 
-from ql import configure, tboth, parse_rate, parse_dt, generate_fmodes
+from ql import configure, tboth, parse_rate, parse_dt, generate_fmodes, save_etf
 from ql import generate_psds, generate_pseudophase, generate_tweeter_modes, generate_woofer_modes, generate_tiptilt, remove_tiptilt
 from ql import plot_timeline, plot_psuedophase_view, plot_psd, plot_etf, plot_lfp
 
@@ -42,6 +42,7 @@ def main(root, date, ncl, nol, outdir):
         click.echo("Plotting timelines")
         for short in (True, False):
             plot_timeline(tol, tcl, date=date, short=short)
+            plot_timeline(tol, tcl, kind='slopes', date=date, short=short)
             plot_timeline(tol, tcl, kind='tweeter', date=date, short=short)
             plot_timeline(tol, tcl, kind='woofer', date=date, short=short)
             plot_timeline(tol, tcl, kind='tweeter-modes', date=date, short=short)
@@ -63,11 +64,11 @@ def main(root, date, ncl, nol, outdir):
         click.echo("Generating PSDs")
         for t in (tcl, tol):
             rate = parse_rate(t.group['slopes'].attrs.get("WFSCAMRATE", 1.0))
-            t['tweeter-modes-psd'] = generate_psds(t['tweeter-modes'][1], rate, length=1024)
-            t['woofer-modes-psd'] = generate_psds(t['woofer-modes'][1], rate, length=1024)
-            t['tweeter-psd'] = generate_psds(t['tweeter'][1], rate, length=1024)
-            t['pseudophase-psd'] = generate_psds(t['pseudophase'][1], rate, length=1024)
-            t['fmodes-psd'] = generate_psds(t['fmodes'][1], rate, length=1024)
+            t['tweeter-modes-psd'] = generate_psds(t['tweeter-modes'][1], rate)
+            t['woofer-modes-psd'] = generate_psds(t['woofer-modes'][1], rate)
+            t['tweeter-psd'] = generate_psds(t['tweeter'][1], rate)
+            t['pseudophase-psd'] = generate_psds(t['pseudophase'][1], rate)
+            t['fmodes-psd'] = generate_psds(t['fmodes'][1], rate)
         
         click.echo("Plotting PSDs and ETFs")
         
@@ -76,11 +77,12 @@ def main(root, date, ncl, nol, outdir):
         plot_psd(tol, tcl, kind='tweeter-modes', index=slice(0,10), date=date)
         plot_etf(tol, tcl, kind='tweeter-modes', index=slice(0,10), date=date)
         plot_lfp(tol, tcl, kind='tweeter-modes', date=date)
-        
+
         for i in range(50):
             plot_psd(tol, tcl, kind='tweeter-modes', index=(i,), date=date)
             plot_etf(tol, tcl, kind='tweeter-modes', index=(i,), date=date)
         
+        save_etf(tol, tcl, kind='woofer-modes')
         plot_psd(tol, tcl, kind='woofer-modes', index=None, date=date)
         plot_etf(tol, tcl, kind='woofer-modes', index=None, date=date)
         plot_lfp(tol, tcl, kind='woofer-modes', date=date)

@@ -116,14 +116,16 @@ def parse_rate(value):
         rate = rate_enumeration.get(value, value * u.Hz)
     else:
         rate = u.Quantity(float(value), u.Hz)
+    if rate == 0.0:
+        return 250 * u.Hz
     return rate
 
 def read(h5group):
     """Read a masked group"""
-    mask = h5group['mask'][...] == 1
+    mask = h5group['mask'][...] != -1
     assert mask.any(), "Some elements must be valid."
     axis = int(h5group['data'].attrs.get("TAXIS", 0))
-    rate = parse_rate(h5group.attrs.get("WFSCAMRATE", 1.0))
+    rate = parse_rate(h5group.attrs.get("WFSCAMRATE", 1.0)) / 2.0
     n = h5group['data'].shape[axis]
     times = np.linspace(0, n / rate.value, n) / rate.unit
     mtimes = np.compress(mask, times)
@@ -141,6 +143,9 @@ def state(h5group):
 def topen(root, date, n, mode='r'):
     """Load data from disk."""
     path = pjoin(root, "{date:%Y-%m-%d}", "telemetry_{n:04d}.hdf5").format(date=date, n=n)
+    if not os.path.exists(path):
+        raise IOError("Can't find file {0}".format(path))
+    
     with h5py.File(path, mode) as f:
         t = f['telemetry']
         yield TelemetryContainer(t, n, date)
@@ -162,6 +167,7 @@ def tboth(root, date, ncl, nol, mode='r'):
 
 def figure_name(openloop, closedloop, kind=None, ext="png", date=None, key=None, index=None, path=None, **kwargs):
     """Construct a filename."""
+    subdir = kwargs.pop('subdir', False)
     parts = ["{date:%Y-%m-%d}","C{closedloop.n:04d}","O{openloop.n:04d}"]
     if kind is not None:
         parts.append("{kind:s}")
@@ -292,7 +298,16 @@ def add_figlabel(fig, openloop, closedloop):
         pass
     fig.text(0.01, 0.99, "\n".join(text), va='top', ha='left', fontsize='small')
 
-
+def save_etf(tol, tcl, kind='woofer-modes'):
+    """Save an ETF"""
+    name = figure_name(tol, tcl, kind, ext="png", key="ETF")
+    f_to_save, etf_to_save = compute_etf(tol, tcl, kind, None, average=True)
+    name_no_ext, ext = os.path.splitext(name)
+    with h5py.File(name_no_ext + ".hdf5", mode='a') as hfile:
+        freq = hfile.require_dataset("frequency", shape=f_to_save.shape, dtype=f_to_save.dtype)
+        freq[...] = f_to_save
+        etf = hfile.require_dataset("etf", shape=etf_to_save.shape, dtype=etf_to_save.dtype)
+        etf[...] = etf_to_save
 
 def previous_noon(now=None):
     """Compute the previous noon for telemetry folders."""
@@ -321,10 +336,15 @@ def index_label(args):
         return ",".join("{:02d}".format(int(a)) for a in args)
     
 
-def generate_psds(source, rate, length=1024, **kwargs):
+def generate_psds(source, rate, length=None, **kwargs):
     """Generate PSDs"""
     from controltheory.fourier import frequencies
     from controltheory.periodogram import periodogram
+    if length is None:
+        if source.shape[-1] < 1024:
+            length = 256
+        else:
+            length = 1024
     psd = periodogram(source, length=length, axis=source.ndim - 1, half_overlap=True, **kwargs)
     freq = frequencies(length, rate)
     return freq, psd
@@ -372,7 +392,13 @@ def plot_timeline(openloop, closedloop, kind='pseudophase', short=False):
     add_figlabel(fig, openloop, closedloop)
     
     # Histogram
-    _, bins, po = ax_hp.hist(np.median(opp, axis=-1).flatten(), 30, orientation='horizontal', alpha=0.5)
+    opp_median = np.median(opp, axis=-1).flatten()
+    ptp = np.abs(np.ptp(opp_median))
+    if ptp < 1e-8:
+        bins = np.linspace(-10, 10, 31)
+    else:
+        bins = 30
+    _, bins, po = ax_hp.hist(opp_median, bins, orientation='horizontal', alpha=0.5)
     ol_color = po[0].get_facecolor()
     _, bins, pc = ax_hp.hist(np.median(cpp, axis=-1).flatten(), bins, orientation='horizontal', alpha=0.5)
     cl_color = pc[0].get_facecolor()
@@ -438,6 +464,7 @@ def plot_psuedophase_view(openloop, closedloop, kind='pseudophase'):
     
     pnorm = mnorm.Normalize()
     pos = 10, 100, min([int(0.9 * cst.shape[0]), int(0.9 * ost.shape[0])])
+    pos = [t for t in pos if ((t < opp.shape[-1]) and (t < cpp.shape[-1]))]
     pnorm.autoscale([ opp[...,t] for t in pos ] + [ cpp[...,t] for t in pos ])
     
     for i,t in enumerate(pos):
