@@ -5,6 +5,8 @@ import click
 import os
 from os.path import join as pjoin
 
+pexpand = lambda p : os.path.normpath(os.path.expanduser(p))
+
 import matplotlib
 matplotlib.use('Agg')
 
@@ -18,6 +20,7 @@ from ql import plot_timeline, plot_psuedophase_view, plot_psd, plot_etf, plot_lf
 
 @click.command()
 @click.option("--root", default=os.path.sep + pjoin("Volumes","LaCie","Telemetry2","ShaneAO"))
+@click.option("--sauce", "root", flag_value=pexpand(pjoin("~","Development", "ShaneAO", "ShWLSimulator", "telemetry")))
 @click.option("--date", default=dt.datetime.now(), type=parse_dt, help="Telemetry folder date.")
 @click.option("--outdir", default=os.getcwd(), type=click.Path(exists=True))
 @click.argument("ncl", type=int)
@@ -28,6 +31,9 @@ def main(root, date, ncl, nol, outdir):
     Provide the telemetry numbers to examine for closed loop and open loop.
     
     """
+    if not isinstance(root, str):
+        root = os.path.sep + pjoin("Volumes","LaCie","Telemetry2","ShaneAO")
+    
     os.chdir(outdir)
     configure()
     with tboth(root, date, ncl, nol) as (tcl, tol):
@@ -40,7 +46,7 @@ def main(root, date, ncl, nol, outdir):
             t.generate('woofer-modes', generate_woofer_modes)
         
         click.echo("Plotting timelines")
-        for short in (True, False):
+        for short in (False, True):
             plot_timeline(tol, tcl, date=date, short=short)
             plot_timeline(tol, tcl, kind='slopes', date=date, short=short)
             plot_timeline(tol, tcl, kind='tweeter', date=date, short=short)

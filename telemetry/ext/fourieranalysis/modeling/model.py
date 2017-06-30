@@ -51,6 +51,7 @@ class TransferFunctionBase(FittableModel):
     inputs = ('freq',)
     outputs = ('y',)
 
+
 class TransferFunction(FittableModel):
     """Model of a transfer function."""
     
@@ -189,3 +190,94 @@ class JointTransferFunction(TransferFunctionBase):
         joint_tf = np.power(1.0 / np.abs(1.0 + delay_woofer * cofz_woofer + delay_tweeter * cofz_tweeter * (1.0 - filter_woofer)), 2.0)
         
         return (woofer_overlap * joint_tf) + (1.0 - woofer_overlap) * tweeter_tf
+    
+
+class WRTransferFunction(TransferFunctionBase):
+    """Handle multi-mirror transfer functions."""
+    
+    tau = Parameter(min=0.1, max=5.0)
+    tweeter_gain = Parameter(min=0.0, max=1.0)
+    tweeter_ln_c = Parameter(min=-1e2, max=0.0)
+    
+    woofer_gain = Parameter(min=0.0, max=1.0)
+    woofer_ln_c = Parameter(min=-1e2, max=0.0)
+    woofer_tau = Parameter(min=0.1, max=5.0)
+    woofer_alpha = Parameter(min=0.0, max=1.0)
+    woofer_zeta = Parameter(min=0.0, max=1.0)
+    # woofer_beta = Parameter(min=0.0, max=1.0)
+    
+    woofer_overlap = Parameter(min=0.0, max=1.0, fixed=True)
+    woofer_rate = Parameter(fixed=True)
+    rate = Parameter(fixed=True)
+    
+    
+    def __init__(self, *args, **kwargs):
+        for mirror in ('tweeter', 'woofer'):
+            if '{0}_integrator'.format(mirror) in kwargs:
+                kwargs.setdefault('{0}_ln_c'.format(mirror), np.log(1.0 - kwargs.pop('{0}_integrator'.format(mirror))))
+        super(WRTransferFunction, self).__init__(*args, **kwargs)
+    
+    @classmethod
+    def expected(cls, dataset, overlap=1.0):
+        """Given an emperical transfer function, compute the expected model."""
+        info = dataset.instrument_data
+        return cls(tau=1.0 + 900e-6 * info.wfs_rate, rate=info.wfs_rate,
+                   tweeter_gain=info.tweeter_gain, tweeter_integrator=info.tweeter_bleed,
+                   woofer_gain=info.woofer_gain, woofer_integrator=info.woofer_bleed,
+                   woofer_tau=6.4e-3 * info.wfs_rate, woofer_alpha=info.alpha,
+                   woofer_overlap=overlap, woofer_rate=info.woofer_rate)
+    
+    @property
+    def tweeter_integrator(self):
+        """Return the integrator value."""
+        return 1.0 - np.exp(self.tweeter_ln_c.value)
+        
+    @tweeter_integrator.setter
+    def tweeter_integrator(self, value):
+        """Set the intergrator."""
+        self.tweeter_ln_c.value = np.log(1.0 - value)
+    
+    @property
+    def woofer_integrator(self):
+        """Return the integrator value."""
+        return 1.0 - np.exp(self.woofer_ln_c.value)
+        
+    @woofer_integrator.setter
+    def woofer_integrator(self, value):
+        """Set the intergrator."""
+        self.woofer_ln_c.value = np.log(1.0 - value)
+        
+    @staticmethod
+    def evaluate(freq, tau, tweeter_gain, tweeter_ln_c, woofer_gain, woofer_ln_c, woofer_tau, woofer_alpha, woofer_zeta, woofer_overlap, woofer_rate, rate):
+        """Evaluate the dual method transfer function"""
+        freq = np.asarray(freq)
+        tweeter_integrator = 1.0 - np.exp(tweeter_ln_c)
+        woofer_integrator = 1.0 - np.exp(woofer_ln_c)
+        zinv_tweeter = zinverse(freq, rate)
+        zinv_woofer = zinverse(freq, rate)
+
+        wfs_stare = tweeter_stare = stare(freq, rate) # Stare averaging
+        woofer_stare = stare(freq, woofer_rate)
+        woofer_response = stage_filter(freq, woofer_zeta, woofer_rate)
+        delay_rcomp = delay(freq, tau / rate) # Computational Delay
+        delay_wcomp = delay(freq, woofer_tau / rate)
+
+        # Delay total for tweeter:
+        #  Computation + WFS Stare + DM Stare
+        delay_tweeter = delay_rcomp * wfs_stare * tweeter_stare
+        delay_woofer = delay_rcomp * wfs_stare * delay_wcomp * woofer_stare
+        
+        # Integrating controller for the tweeter
+        cofz_tweeter = cofz_integrator(zinv_tweeter, tweeter_gain, tweeter_integrator)
+        cofz_woofer = cofz_integrator(zinv_woofer, woofer_gain, woofer_integrator)
+        
+        # Temporal filter, which only has one step.
+        filter_woofer = woofer_alpha * zinv_tweeter
+        
+        # Transfer functions:
+        woofer_tf = np.power(1.0 / np.abs(1.0 + delay_woofer * cofz_woofer), 2.0)
+        tweeter_tf = np.power(1.0 / np.abs(1.0 + delay_tweeter * cofz_tweeter), 2.0)
+        joint_tf = np.power(1.0 / np.abs(1.0 + delay_woofer * woofer_response * cofz_woofer + delay_tweeter * cofz_tweeter * (1.0 - filter_woofer)), 2.0)
+        
+        return (woofer_overlap * joint_tf) + (1.0 - woofer_overlap) * tweeter_tf
+

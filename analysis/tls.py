@@ -10,12 +10,14 @@ import datetime as dt
 from astropy.table import Table
 from telemetry.utils import parse_dt
 import astropy.units as u
+import traceback
 
 def state(h5group):
     return '\n'.join("{}: {}".format(k, v) for k, v in h5group.attrs.items())
 
 
 rate_enumeration = {
+    0: 250.0 * u.Hz, # Sauce
     1: 50.0 * u.Hz,
     2: 100.0 * u.Hz,
     3: 250.0 * u.Hz,
@@ -82,10 +84,16 @@ def main(root, date, closed):
                     row[name] = convert(g.attrs[attr])
                 row['n'] = g['mask'][...].sum()
         except (IOError, KeyError) as e:
-            click.echo("# Problem with {}: {!s}".format(fn, e))
+            click.echo("# Problem with {}: {!r}".format(fn, e))
+            excfmt = traceback.format_exc()
         else:
             if (not closed) or (row['Loop'] == "Closed"): 
                 rows.append(row)
+    if not rows:
+        click.secho("No telemetry files were successfully examined!", fg='red')
+        click.echo(excfmt)
+        raise click.Abort()
+    
     t = Table(rows, names=['file'] + ['n'] + [name for _, name, _ in columns])
     t.pprint(max_lines=-1)
     

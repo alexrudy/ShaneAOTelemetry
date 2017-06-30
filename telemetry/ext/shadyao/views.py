@@ -26,8 +26,6 @@ positions = {
     'UL': ((0.05, 0.95), dict(va='top', ha='left')),
     'UR': ((0.95, 0.95), dict(va='top', ha='right')),
     'LR': ((0.95, 0.05), dict(va='bottom', ha='right')),
-
-
 }
 
 def ax_label(axes, cln, oln, date, rate, *extra, **kwargs):

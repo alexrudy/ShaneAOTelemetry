@@ -191,7 +191,7 @@ def figure_name(openloop, closedloop, kind=None, ext="png", date=None, key=None,
     name = name.replace(":", "-")
     return name
 
-def plot(key, extension="png", keyarg=False):
+def plot(key, extension="png", keyarg=False, keyargtransform=None):
     """A plot function decorator"""
     def decorator(f):
         """A decorator for the plot function."""
@@ -211,7 +211,11 @@ def plot(key, extension="png", keyarg=False):
                 figure = f(openloop, closedloop, **kwargs)
                 parts = ["{date:%Y-%m-%d}","C{closedloop.n:04d}","O{openloop.n:04d}","{kind:s}", "{key:s}", "{index:s}"]
                 if keyarg:
-                    parts.append(str(kwargs.get(keyarg, "")))
+                    if keyargtransform:
+                        kpart = keyargtransform(kwargs.get(keyarg, ""))
+                    else:
+                        kpart = str(kwargs.get(keyarg, ""))
+                    parts.append(kpart)
                 basename = "{0}.{{ext:s}}".format("-".join(parts))
                 
                 if path is None:
@@ -238,8 +242,8 @@ def generate_tiptilt(t):
     """Remove tiptilt."""
     ns = int(t.group['slopes'].attrs.get('WFSNS', 144))
     times, slopes = t['slopes']
-    tip = slopes[:ns].mean(axis=0)
-    tilt = slopes[ns:2*ns].mean(axis=0)
+    tip = np.clip(slopes[:ns].mean(axis=0), -1.0, 1.0)
+    tilt = np.clip(slopes[ns:2*ns].mean(axis=0), -1.0, 1.0)
     return times, np.vstack((tip, tilt))
     
 def remove_tiptilt(t):
@@ -247,9 +251,15 @@ def remove_tiptilt(t):
     ns = int(t.group['slopes'].attrs.get('WFSNS', 144))
     times, slopes = t['slopes']
     times, tiptilt = t['tiptilt']
-    txslopes = slopes[:ns] - tiptilt[None,0,:]
-    tyslopes = slopes[ns:2*ns] - tiptilt[None,1,:]
-    toslopes = slopes[2*ns:]
+    
+    # Mask out invalid slope values.
+    mask = ((slopes < 1.0) & (-1.0 < slopes)).all(axis=0)
+    
+    txslopes = np.compress(mask, slopes[:ns] - tiptilt[None,0,:], axis=1)
+    tyslopes = np.compress(mask, slopes[ns:2*ns] - tiptilt[None,1,:], axis=1)
+    toslopes = np.compress(mask, slopes[2*ns:], axis=1)
+    times = np.compress(mask, times)
+    
     return times, np.vstack((txslopes, tyslopes, toslopes))
 
 def generate_pseudophase(t):
@@ -371,7 +381,7 @@ def collapse_psd(psd, kind, index=None, average=False):
     return psd_selected
     
 
-@plot("Timeline", keyarg='short')
+@plot("Timeline", keyarg='short', keyargtransform=lambda k : "short" if k else "")
 def plot_timeline(openloop, closedloop, kind='pseudophase', short=False):
     """Plot timeline of data from pseudophase and intensity."""
     gs = mgrid.GridSpec(2, 2, width_ratios=[1.0, 0.2], wspace=0.1)
