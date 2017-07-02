@@ -89,7 +89,12 @@ class Integrator(FittableModel):
         """Evaluate a transfer function."""
         return cofz_integrator(zinverse(freq, rate), gain, 1.0 - np.exp(bleed))
 
-    
+class Mapping(models.Mapping):
+    fittable = True
+
+class Identity(models.Identity):
+    fittable = True
+
 class Filtered(FittableModel):
     """A filtered mirror model"""
     
@@ -109,7 +114,8 @@ class Filtered(FittableModel):
     
     def applied(self, cofz):
         """Return the appropriate compound model to apply this filter."""
-        return (models.Mapping((0,0)) | (models.Identity(1) & cofz) | self)
+        model = (Mapping((0,0)) | (Identity(1) & cofz) | self)
+        return model
 
 
 class FlexibleKalmanFilter(FittableModel):
